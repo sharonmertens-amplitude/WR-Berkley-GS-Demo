@@ -1,0 +1,1752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lavalier Customer Center — Demo Environment</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- =====================================================================
+     AMPLITUDE INSTRUMENTATION — read this before you change anything.
+
+     This page loads the Amplitude BROWSER UNIFIED SCRIPT, which is the
+     single loader that covers:
+         1. Analytics            (included in the unified script)
+         2. Session Replay       (included in the unified script)
+         3. Guides & Surveys     (separate .engagement.js file, by design —
+                                  Amplitude splits it out for payload size)
+
+     So it is "one SDK that encompasses it all" in the sense that matters:
+     one API key, one identity, one install, three products.
+
+     You only need to fill in ONE value: AMPLITUDE_API_KEY, below.
+
+     Ordering rules that this file deliberately respects (these are the
+     exact rules that broke the first CDK build):
+       - The .engagement.js script must load AFTER the unified script.
+       - amplitude.add(window.engagement.plugin()) must run BEFORE
+         amplitude.init(). Do not defer it into a later function.
+       - Do NOT call engagement.init() or engagement.boot() yourself.
+         Adding the plugin handles that.
+       - Scripts must execute in order. Dynamically injected scripts
+         default to async, so we explicitly set .async = false below to
+         preserve execution order.
+     ===================================================================== -->
+<script>
+  /* ------------------------------------------------------------------
+     STEP 1 OF 1 — paste your project API key between the quotes.
+     Use a DEMO / SANDBOX project key. Never a customer production key.
+     Find it in Amplitude: Settings -> Projects -> [project] -> General.
+     ------------------------------------------------------------------ */
+  var AMPLITUDE_API_KEY = "PASTE_YOUR_PROJECT_API_KEY_HERE";
+
+  /* Set to "EU" if the Amplitude org lives in the EU data region.
+     Wrong zone = events silently never arrive. */
+  var SERVER_ZONE = "US";
+
+  /* Session Replay sample rate. 1 = capture every session, which is what
+     you want for a live demo. Lower it if you reuse this page for volume
+     testing. */
+  var SESSION_REPLAY_SAMPLE_RATE = 1;
+</script>
+
+<style>
+  /* ---------------------------------------------------------------
+     Design tokens
+     Navy/ink base for the insurance register the brief asked for.
+     Brass is the one warm note — it belongs to the subject: jewelry
+     appraisal, certificates, hallmarks. Used only on hairlines,
+     appraisal figures, and the schedule-of-items rule.
+     Mono + ink is reserved exclusively for the instrumentation rail,
+     so the Amplitude layer reads as visibly separate from the product.
+     --------------------------------------------------------------- */
+  :root{
+    --ink:#0E1B30;
+    --navy:#17315C;
+    --navy-soft:#25457A;
+    --blue:#2B5BD7;
+    --blue-dark:#1E45AA;
+    --blue-wash:#EDF2FD;
+    --brass:#A5813F;
+    --brass-wash:#FBF6EC;
+    --paper:#F6F7F9;
+    --white:#FFFFFF;
+    --line:#DFE3EA;
+    --line-soft:#EDEFF3;
+    --text:#16203A;
+    --muted:#5D6880;
+    --muted-2:#828C9F;
+    --green:#186F53;
+    --green-wash:#E9F5F0;
+    --amber:#9A5B00;
+    --amber-wash:#FDF3E3;
+    --red:#A32B24;
+
+    --rail-bg:#0B1526;
+    --rail-line:#22334E;
+    --rail-text:#C6D2E4;
+    --rail-dim:#75879F;
+    --rail-green:#4FD1A5;
+    --rail-blue:#6AA6FF;
+    --rail-brass:#DDB56A;
+
+    --serif:"Source Serif 4",Georgia,serif;
+    --sans:"Public Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+
+    --r:10px;
+    --r-lg:14px;
+    --shadow:0 1px 2px rgba(14,27,48,.06),0 8px 24px rgba(14,27,48,.07);
+    --shadow-lg:0 12px 40px rgba(14,27,48,.18);
+    --rail-w:340px;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:var(--sans);
+    background:var(--paper);
+    color:var(--text);
+    font-size:15px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  body.rail-open{padding-right:var(--rail-w)}
+  @media(max-width:1100px){body.rail-open{padding-right:0}}
+
+  a{color:var(--blue);text-decoration:none}
+  a:hover{text-decoration:underline}
+  button{font-family:inherit;font-size:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  :focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:4px}
+
+  /* ---------- demo banner ---------- */
+  .demo-banner{
+    background:var(--ink);
+    color:#E8EDF6;
+    font-family:var(--mono);
+    font-size:11.5px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    padding:7px 20px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    justify-content:center;
+    position:relative;
+    z-index:60;
+  }
+  .demo-banner .dot{width:6px;height:6px;border-radius:50%;background:var(--rail-brass);flex:none}
+
+  /* ---------- header ---------- */
+  header{
+    background:var(--white);
+    border-bottom:1px solid var(--line);
+    position:sticky;top:0;z-index:50;
+  }
+  .header-in{
+    max-width:1080px;margin:0 auto;padding:0 24px;
+    height:66px;display:flex;align-items:center;gap:32px;
+  }
+  .brand{display:flex;align-items:baseline;gap:9px;flex:none}
+  .brand .mark{
+    font-family:var(--serif);font-weight:700;font-size:21px;color:var(--navy);letter-spacing:-.01em;
+  }
+  .brand .sub{
+    font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted-2);
+  }
+  nav.main{display:flex;gap:4px;margin-left:auto}
+  nav.main a{
+    padding:8px 13px;border-radius:7px;color:var(--muted);font-weight:500;font-size:14px;
+  }
+  nav.main a:hover{background:var(--paper);color:var(--text);text-decoration:none}
+  nav.main a.active{background:var(--blue-wash);color:var(--blue-dark);font-weight:600}
+  .acct{
+    display:flex;align-items:center;gap:9px;padding-left:18px;border-left:1px solid var(--line);flex:none;
+  }
+  .avatar{
+    width:31px;height:31px;border-radius:50%;background:var(--navy);color:#fff;
+    display:grid;place-items:center;font-size:12px;font-weight:600;flex:none;
+  }
+  .acct .who{line-height:1.25}
+  .acct .who b{display:block;font-size:13px;font-weight:600}
+  .acct .who span{display:block;font-size:11px;color:var(--muted-2);font-family:var(--mono)}
+  @media(max-width:820px){
+    nav.main{display:none}
+    .header-in{gap:16px}
+  }
+
+  /* ---------- layout ---------- */
+  main{max-width:1080px;margin:0 auto;padding:38px 24px 80px}
+  .eyebrow{
+    font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--brass);font-weight:500;margin-bottom:10px;
+  }
+  h1{font-family:var(--serif);font-size:33px;font-weight:600;letter-spacing:-.02em;line-height:1.2;color:var(--ink)}
+  h2{font-family:var(--serif);font-size:22px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
+  h3{font-size:15px;font-weight:600;color:var(--ink)}
+  .lede{color:var(--muted);font-size:15.5px;max-width:60ch;margin-top:9px}
+  .page-head{margin-bottom:30px}
+
+  .card{
+    background:var(--white);border:1px solid var(--line);border-radius:var(--r-lg);
+    box-shadow:var(--shadow);
+  }
+  .pad{padding:22px}
+  .pad-lg{padding:26px 28px}
+
+  .grid{display:grid;gap:16px}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:900px){.g2,.g3{grid-template-columns:1fr}}
+
+  /* ---------- task cards (home) ---------- */
+  .task{
+    background:var(--white);border:1px solid var(--line);border-radius:var(--r-lg);
+    padding:20px;display:flex;flex-direction:column;gap:7px;text-align:left;width:100%;
+    transition:border-color .15s,box-shadow .15s,transform .15s;position:relative;
+  }
+  .task:hover{border-color:var(--navy-soft);box-shadow:var(--shadow);transform:translateY(-1px)}
+  .task .ic{
+    width:34px;height:34px;border-radius:8px;background:var(--blue-wash);color:var(--blue-dark);
+    display:grid;place-items:center;margin-bottom:5px;
+  }
+  .task b{font-size:15.5px;font-weight:600}
+  .task span{color:var(--muted);font-size:13.5px;line-height:1.45}
+  .task .go{
+    margin-top:6px;font-size:13px;font-weight:600;color:var(--blue);
+    display:flex;align-items:center;gap:5px;
+  }
+  .task .flagchip{
+    position:absolute;top:16px;right:16px;
+    font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;
+    background:var(--amber-wash);color:var(--amber);padding:3px 7px;border-radius:5px;font-weight:600;
+  }
+
+  /* ---------- buttons ---------- */
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:7px;
+    padding:10px 17px;border-radius:8px;font-weight:600;font-size:14px;
+    border:1px solid transparent;transition:background .14s,border-color .14s,color .14s;
+  }
+  .btn-primary{background:var(--blue);color:#fff}
+  .btn-primary:hover{background:var(--blue-dark);text-decoration:none}
+  .btn-secondary{background:var(--white);border-color:var(--line);color:var(--text)}
+  .btn-secondary:hover{border-color:var(--navy-soft);background:var(--paper)}
+  .btn-ghost{color:var(--blue);padding:10px 4px}
+  .btn-ghost:hover{text-decoration:underline}
+  .btn-sm{padding:7px 13px;font-size:13px}
+  .btn-block{width:100%}
+
+  /* ---------- item schedule ---------- */
+  .sched{border-top:1px solid var(--brass);margin-top:4px}
+  .sched-row{
+    display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--line-soft);
+  }
+  .sched-row:last-child{border-bottom:none}
+  .sched-row .nm{flex:1;min-width:0}
+  .sched-row .nm b{display:block;font-size:14.5px;font-weight:600}
+  .sched-row .nm span{display:block;font-size:12.5px;color:var(--muted-2);font-family:var(--mono)}
+  .val{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--brass);white-space:nowrap}
+
+  /* ---------- misc bits ---------- */
+  .kv{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid var(--line-soft);font-size:14px}
+  .kv:last-child{border-bottom:none}
+  .kv span{color:var(--muted)}
+  .kv b{font-weight:600;font-family:var(--mono);font-size:13.5px}
+
+  .badge{
+    display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;
+    letter-spacing:.05em;text-transform:uppercase;font-weight:600;padding:4px 9px;border-radius:20px;
+  }
+  .badge-green{background:var(--green-wash);color:var(--green)}
+  .badge-amber{background:var(--amber-wash);color:var(--amber)}
+  .badge-blue{background:var(--blue-wash);color:var(--blue-dark)}
+
+  .notice{
+    background:var(--brass-wash);border:1px solid #EBDCC0;border-left:3px solid var(--brass);
+    border-radius:var(--r);padding:14px 16px;font-size:13.5px;color:#5F4A21;
+  }
+
+  input[type=text],input[type=search],input[type=date],textarea,select{
+    width:100%;padding:10px 13px;border:1px solid var(--line);border-radius:8px;
+    font-family:inherit;font-size:14px;background:var(--white);color:var(--text);
+  }
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-wash)}
+  label.fl{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:5px}
+  .field{margin-bottom:15px}
+
+  /* ---------- help center ---------- */
+  .searchbar{position:relative}
+  .searchbar svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted-2)}
+  .searchbar input{padding-left:38px;height:46px;font-size:15px}
+  .cat{
+    border:1px solid var(--line);border-radius:var(--r);padding:15px 16px;background:var(--white);
+    text-align:left;width:100%;transition:border-color .14s,background .14s;
+  }
+  .cat:hover{border-color:var(--navy-soft);background:var(--blue-wash)}
+  .cat b{display:block;font-size:14.5px;font-weight:600;margin-bottom:2px}
+  .cat span{font-size:12.5px;color:var(--muted)}
+  .article{
+    padding:13px 0;border-bottom:1px solid var(--line-soft);display:flex;justify-content:space-between;
+    gap:14px;align-items:center;width:100%;text-align:left;
+  }
+  .article:last-child{border-bottom:none}
+  .article b{font-weight:500;font-size:14px}
+  .article:hover b{color:var(--blue)}
+  .article .meta{font-family:var(--mono);font-size:11px;color:var(--muted-2);white-space:nowrap}
+
+  /* ---------- footer ---------- */
+  footer{
+    border-top:1px solid var(--line);background:var(--white);padding:22px 24px;
+    text-align:center;font-size:12.5px;color:var(--muted-2);
+  }
+  footer .fine{font-family:var(--mono);font-size:11px;letter-spacing:.04em}
+
+  /* =========================================================
+     INSTRUMENTATION RAIL — the signature element.
+     Everything Amplitude-related lives here, in mono on ink,
+     visually separated from the product surface on the left.
+     ========================================================= */
+  #rail{
+    position:fixed;top:0;right:0;bottom:0;width:var(--rail-w);
+    background:var(--rail-bg);color:var(--rail-text);z-index:70;
+    display:flex;flex-direction:column;transform:translateX(100%);
+    transition:transform .22s ease;font-family:var(--mono);font-size:12px;
+    border-left:1px solid var(--rail-line);
+  }
+  body.rail-open #rail{transform:none}
+  .rail-head{
+    padding:14px 16px;border-bottom:1px solid var(--rail-line);
+    display:flex;align-items:center;justify-content:space-between;gap:10px;flex:none;
+  }
+  .rail-head b{font-size:11px;letter-spacing:.11em;text-transform:uppercase;color:#fff;font-weight:600}
+  .rail-close{color:var(--rail-dim);font-size:18px;line-height:1;padding:2px 6px;border-radius:5px}
+  .rail-close:hover{background:var(--rail-line);color:#fff}
+  .rail-body{overflow-y:auto;flex:1;padding-bottom:20px}
+  .rail-sec{padding:15px 16px;border-bottom:1px solid var(--rail-line)}
+  .rail-sec h4{
+    font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--rail-dim);
+    font-weight:600;margin-bottom:11px;
+  }
+
+  .sdk{display:flex;align-items:center;gap:9px;padding:6px 0;font-size:11.5px}
+  .sdk .led{width:7px;height:7px;border-radius:50%;background:#3E4C63;flex:none}
+  .sdk.on .led{background:var(--rail-green);box-shadow:0 0 7px rgba(79,209,165,.7)}
+  .sdk.off .led{background:#C9553F}
+  .sdk .nm{flex:1;color:#E4EBF6}
+  .sdk .st{color:var(--rail-dim);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase}
+  .sdk.on .st{color:var(--rail-green)}
+  .sdk.off .st{color:#E08A78}
+
+  .persona{
+    display:block;width:100%;text-align:left;padding:9px 11px;border-radius:7px;
+    border:1px solid var(--rail-line);background:transparent;color:var(--rail-text);
+    margin-bottom:7px;font-family:var(--mono);font-size:11.5px;line-height:1.4;
+    transition:background .13s,border-color .13s;
+  }
+  .persona:hover{background:#14243C;border-color:#33496B}
+  .persona.sel{background:#152C4D;border-color:var(--rail-blue);color:#fff}
+  .persona b{display:block;font-weight:600;font-size:12px;margin-bottom:2px}
+  .persona span{color:var(--rail-dim);font-size:10.5px}
+  .persona.sel span{color:#9DBEEC}
+
+  .trig{
+    display:block;width:100%;text-align:left;padding:8px 11px;border-radius:7px;
+    border:1px solid var(--rail-line);background:transparent;color:var(--rail-text);
+    margin-bottom:6px;font-family:var(--mono);font-size:11.5px;
+    display:flex;align-items:center;gap:8px;transition:background .13s;
+  }
+  .trig:hover{background:#14243C}
+  .trig .tag{
+    font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:4px;
+    font-weight:600;flex:none;
+  }
+  .tag-g{background:#1B3A5C;color:var(--rail-blue)}
+  .tag-s{background:#3A2E14;color:var(--rail-brass)}
+
+  .props{font-size:11px;line-height:1.7}
+  .props div{display:flex;justify-content:space-between;gap:10px}
+  .props .k{color:var(--rail-dim)}
+  .props .v{color:var(--rail-brass)}
+
+  #stream{max-height:230px;overflow-y:auto;font-size:11px;line-height:1.5}
+  .ev{padding:6px 0;border-bottom:1px solid #16243A;display:flex;gap:8px}
+  .ev:last-child{border-bottom:none}
+  .ev .t{color:#546883;flex:none}
+  .ev .n{color:#DCE6F4;flex:1;word-break:break-word}
+  .ev.g .n{color:var(--rail-blue)}
+  .ev.s .n{color:var(--rail-brass)}
+  .stream-empty{color:var(--rail-dim);padding:8px 0;font-size:11px}
+
+  #railToggle{
+    position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:65;
+    background:var(--ink);color:#fff;border-radius:9px 0 0 9px;padding:15px 9px;
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;
+    writing-mode:vertical-rl;box-shadow:-3px 0 14px rgba(14,27,48,.22);font-weight:600;
+  }
+  body.rail-open #railToggle{display:none}
+  @media(max-width:1100px){#rail{width:min(340px,88vw)}}
+
+  /* =========================================================
+     GUIDE + SURVEY LAYER (simulated fallbacks)
+     Real Amplitude guides render themselves. These are local
+     stand-ins so the demo works before anything is published.
+     ========================================================= */
+  #scrim{
+    position:fixed;inset:0;background:rgba(14,27,48,.42);z-index:80;
+    opacity:0;pointer-events:none;transition:opacity .2s;
+  }
+  #scrim.on{opacity:1;pointer-events:auto}
+
+  .gd{
+    position:fixed;z-index:90;background:var(--white);border-radius:var(--r-lg);
+    box-shadow:var(--shadow-lg);border:1px solid var(--line);width:340px;
+    animation:pop .22s cubic-bezier(.2,.9,.3,1);
+  }
+  @keyframes pop{from{opacity:0;transform:translateY(7px) scale(.985)}to{opacity:1;transform:none}}
+  @media(prefers-reduced-motion:reduce){.gd{animation:none}}
+  .gd.modal{
+    width:430px;left:50%;top:50%;transform:translate(-50%,-50%);
+  }
+  .gd-top{
+    display:flex;align-items:flex-start;gap:10px;padding:16px 16px 0;
+  }
+  .gd-src{
+    font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--muted-2);background:var(--paper);border:1px solid var(--line-soft);
+    padding:3px 7px;border-radius:5px;font-weight:600;
+  }
+  .gd-x{margin-left:auto;color:var(--muted-2);font-size:17px;line-height:1;padding:2px 5px;border-radius:5px}
+  .gd-x:hover{background:var(--paper);color:var(--text)}
+  .gd-in{padding:11px 16px 16px}
+  .gd-in h4{font-family:var(--serif);font-size:17px;font-weight:600;margin-bottom:6px;color:var(--ink);line-height:1.3}
+  .gd-in p{font-size:13.5px;color:var(--muted);line-height:1.5}
+  .gd-act{display:flex;align-items:center;gap:10px;margin-top:15px}
+  .gd-act .btn{flex:none}
+  .gd-arrow{
+    position:absolute;width:11px;height:11px;background:var(--white);
+    border-left:1px solid var(--line);border-top:1px solid var(--line);transform:rotate(45deg);
+  }
+  .gd-steps{display:flex;flex-direction:column;gap:2px;margin:12px 0 4px}
+  .gd-step{
+    display:flex;align-items:flex-start;gap:10px;padding:9px 10px;border-radius:8px;font-size:13.5px;
+    text-align:left;width:100%;transition:background .13s;
+  }
+  .gd-step:hover{background:var(--blue-wash)}
+  .gd-step .box{
+    width:17px;height:17px;border-radius:5px;border:1.5px solid var(--line);flex:none;margin-top:2px;
+    display:grid;place-items:center;color:#fff;font-size:10px;
+  }
+  .gd-step.done .box{background:var(--green);border-color:var(--green)}
+  .gd-step.done{color:var(--muted-2)}
+  .gd-step.done b{text-decoration:line-through}
+  .gd-step b{font-weight:500;display:block}
+  .gd-prog{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--muted-2);margin-top:10px;
+  }
+  .gd-why{
+    border-top:1px solid var(--line-soft);padding:10px 16px;font-family:var(--mono);font-size:10.5px;
+    color:var(--muted-2);line-height:1.5;background:var(--paper);border-radius:0 0 var(--r-lg) var(--r-lg);
+  }
+  .gd-why b{color:var(--muted);font-weight:600}
+
+  .gd-scale{display:flex;gap:6px;margin:14px 0 6px}
+  .gd-scale button{
+    flex:1;height:42px;border:1px solid var(--line);border-radius:8px;font-family:var(--mono);
+    font-weight:600;font-size:14px;color:var(--text);transition:all .13s;background:var(--white);
+  }
+  .gd-scale button:hover{border-color:var(--blue);background:var(--blue-wash);color:var(--blue-dark)}
+  .gd-scale button.sel{background:var(--blue);border-color:var(--blue);color:#fff}
+  .gd-scale-lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted-2);font-family:var(--mono)}
+  .gd-opts{display:flex;flex-direction:column;gap:7px;margin-top:13px}
+  .gd-opt{
+    padding:10px 13px;border:1px solid var(--line);border-radius:8px;text-align:left;
+    font-size:13.5px;font-weight:500;transition:all .13s;
+  }
+  .gd-opt:hover{border-color:var(--blue);background:var(--blue-wash)}
+  .gd-opt.sel{border-color:var(--blue);background:var(--blue-wash);color:var(--blue-dark);font-weight:600}
+  .gd-follow{margin-top:13px}
+  .gd-follow textarea{min-height:72px;resize:vertical;font-size:13.5px}
+  .gd-thanks{padding:26px 16px;text-align:center}
+  .gd-thanks .chk{
+    width:38px;height:38px;border-radius:50%;background:var(--green-wash);color:var(--green);
+    display:grid;place-items:center;margin:0 auto 11px;
+  }
+  .gd-thanks b{font-family:var(--serif);font-size:16px;font-weight:600;display:block;margin-bottom:3px}
+  .gd-thanks span{font-size:13px;color:var(--muted)}
+
+  @media(max-width:560px){
+    .gd,.gd.modal{width:calc(100vw - 24px);left:12px !important;right:12px;transform:none !important}
+    .gd.modal{top:auto;bottom:12px}
+    .gd-arrow{display:none}
+  }
+
+  /* ---------- toast ---------- */
+  #toasts{position:fixed;bottom:20px;left:20px;z-index:95;display:flex;flex-direction:column;gap:9px}
+  .toast{
+    background:var(--ink);color:#E7EDF7;padding:11px 15px;border-radius:9px;font-size:13px;
+    box-shadow:var(--shadow-lg);animation:slide .2s;max-width:330px;display:flex;gap:9px;align-items:flex-start;
+  }
+  @keyframes slide{from{opacity:0;transform:translateX(-9px)}to{opacity:1;transform:none}}
+  .toast .tm{font-family:var(--mono);font-size:11px;color:var(--rail-brass);flex:none;padding-top:1px}
+
+  /* ---------- highlight for guide anchors ---------- */
+  .amp-spot{
+    position:relative;z-index:85;box-shadow:0 0 0 3px rgba(43,91,215,.35),0 0 0 9px rgba(43,91,215,.13);
+    border-radius:var(--r-lg);
+  }
+
+  /* ---------- pilot plan ---------- */
+  .plan-row{display:grid;grid-template-columns:200px 1fr;gap:16px;align-items:start;padding:14px 0;border-bottom:1px solid var(--line-soft)}
+  .plan-row:last-child{border-bottom:none}
+  .plan-row label{font-size:13.5px;font-weight:600;padding-top:9px}
+  .plan-row .hint{display:block;font-weight:400;color:var(--muted-2);font-size:12px;margin-top:2px}
+  @media(max-width:700px){.plan-row{grid-template-columns:1fr;gap:6px}.plan-row label{padding-top:0}}
+
+  .metric{
+    border:1px dashed var(--line);border-radius:var(--r);padding:15px;background:var(--white);
+  }
+  .metric .lbl{font-size:12.5px;color:var(--muted);margin-bottom:6px}
+  .metric .ph{
+    font-family:var(--mono);font-size:20px;font-weight:600;color:var(--muted-2);letter-spacing:-.01em;
+  }
+  .metric .src{
+    font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--brass);margin-top:7px;
+  }
+</style>
+</head>
+<body>
+
+<div class="demo-banner">
+  <span class="dot"></span>
+  <span>Demo environment — fictional data</span>
+</div>
+
+<header>
+  <div class="header-in">
+    <div class="brand">
+      <span class="mark">Lavalier</span>
+      <span class="sub">Customer Center</span>
+    </div>
+    <nav class="main" id="nav">
+      <a href="#/home" data-route="home">Overview</a>
+      <a href="#/quote" data-route="quote" id="nav-quote">Saved quote</a>
+      <a href="#/renewal" data-route="renewal" id="nav-renewal">Renewal</a>
+      <a href="#/help" data-route="help" id="nav-help">Help</a>
+      <a href="#/pilot" data-route="pilot">Pilot plan</a>
+    </nav>
+    <div class="acct">
+      <div class="avatar" id="avatar">DW</div>
+      <div class="who">
+        <b id="acct-name">Dana Whitfield</b>
+        <span id="acct-policy">LAV-4417-2290</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main id="view"></main>
+
+<footer>
+  <div class="fine">Fictional demo for discussion — not a production WR Berkley site.</div>
+  <div style="margin-top:6px">All names, policies, item values, and figures on this page are invented for demonstration.</div>
+</footer>
+
+<!-- ============ instrumentation rail ============ -->
+<button id="railToggle">Presenter controls</button>
+<aside id="rail" aria-label="Presenter demo controls">
+  <div class="rail-head">
+    <b>Presenter demo controls</b>
+    <button class="rail-close" id="railClose" aria-label="Close presenter controls">&times;</button>
+  </div>
+  <div class="rail-body">
+
+    <div class="rail-sec">
+      <h4>SDK status</h4>
+      <div class="sdk" id="sdk-analytics"><span class="led"></span><span class="nm">Analytics</span><span class="st">checking</span></div>
+      <div class="sdk" id="sdk-replay"><span class="led"></span><span class="nm">Session Replay</span><span class="st">checking</span></div>
+      <div class="sdk" id="sdk-guides"><span class="led"></span><span class="nm">Guides &amp; Surveys</span><span class="st">checking</span></div>
+      <div style="margin-top:10px;font-size:10.5px;color:var(--rail-dim);line-height:1.5" id="sdk-note"></div>
+    </div>
+
+    <div class="rail-sec">
+      <h4>Audience — who is visiting</h4>
+      <div id="personas"></div>
+      <div style="margin-top:11px;font-size:10.5px;color:var(--rail-dim);line-height:1.5">
+        Switching sets user properties through the Analytics SDK, which is what Guides &amp; Surveys targets on.
+      </div>
+    </div>
+
+    <div class="rail-sec">
+      <h4>User properties being sent</h4>
+      <div class="props" id="props"></div>
+    </div>
+
+    <div class="rail-sec">
+      <h4>Trigger locally (no Amplitude needed)</h4>
+      <div id="triggers"></div>
+      <button class="trig" id="resetGuides" style="margin-top:9px;border-style:dashed">
+        <span class="tag" style="background:#2A2033;color:#C9A5E0">reset</span>
+        <span>Clear all dismissals</span>
+      </button>
+    </div>
+
+    <div class="rail-sec" style="border-bottom:none">
+      <h4>Event stream</h4>
+      <div id="stream"><div class="stream-empty">No events yet. Click around the portal.</div></div>
+    </div>
+
+  </div>
+</aside>
+
+<div id="scrim"></div>
+<div id="guides"></div>
+<div id="toasts"></div>
+
+<script>
+/* =====================================================================
+   1. AMPLITUDE LOADER — Unified Script + Guides & Surveys engagement file
+   ===================================================================== */
+var AMP = {
+  ready:false,
+  analytics:false,
+  replay:false,
+  guides:false,
+  queue:[],
+  reason:""
+};
+
+function keyLooksReal(k){
+  return typeof k === "string" && k.length > 20 && k.indexOf("PASTE_YOUR") === -1;
+}
+
+function loadAmplitude(){
+  if(!keyLooksReal(AMPLITUDE_API_KEY)){
+    AMP.reason = "No API key yet. Paste your project key into index.html to send live data. Everything on this page still works.";
+    paintSdkStatus();
+    return;
+  }
+  var base = "https://cdn.amplitude.com/script/" + AMPLITUDE_API_KEY;
+
+  var unified = document.createElement("script");
+  unified.src = base + ".js";
+  unified.async = false;              // preserve execution order
+
+  var engage = document.createElement("script");
+  engage.src = base + ".engagement.js";
+  engage.async = false;               // must run after the unified script
+
+  var failed = false;
+  function fail(){
+    if(failed) return; failed = true;
+    AMP.reason = "Amplitude scripts did not load. Usual cause is an ad blocker or privacy extension blocking amplitude.com — try an incognito window, or allowlist *.amplitude.com.";
+    paintSdkStatus();
+  }
+  unified.onerror = fail;
+  engage.onerror = fail;
+
+  engage.onload = function(){
+    try{
+      // ORDER MATTERS. Guides & Surveys plugin is added BEFORE init.
+      // Do not call engagement.init() or engagement.boot() — add() does it.
+      if(window.engagement && window.engagement.plugin){
+        window.amplitude.add(window.engagement.plugin());
+      }
+      window.amplitude.init(AMPLITUDE_API_KEY,{
+        serverZone: SERVER_ZONE,
+        fetchRemoteConfig: true,
+        autocapture: true
+      });
+      // Session Replay ships inside the unified script. We add it explicitly
+      // with sampleRate 1 so every demo session is definitely captured.
+      if(window.sessionReplay && window.sessionReplay.plugin){
+        window.amplitude.add(window.sessionReplay.plugin({sampleRate:SESSION_REPLAY_SAMPLE_RATE}));
+      }
+      AMP.ready = true;
+      flushQueue();
+    }catch(e){
+      AMP.reason = "Amplitude loaded but init threw: " + e.message;
+    }
+    setTimeout(paintSdkStatus, 400);
+  };
+
+  document.head.appendChild(unified);
+  document.head.appendChild(engage);
+  setTimeout(paintSdkStatus, 2600);   // late check for blocked requests
+}
+
+function paintSdkStatus(){
+  AMP.analytics = !!(window.amplitude && window.amplitude.track) && AMP.ready;
+  AMP.replay    = !!(window.sessionReplay) && AMP.ready;
+  AMP.guides    = !!(window.engagement) && AMP.ready;
+  setLed("sdk-analytics", AMP.analytics, AMP.analytics ? "live" : "local");
+  setLed("sdk-replay",    AMP.replay,    AMP.replay    ? "capturing" : "local");
+  setLed("sdk-guides",    AMP.guides,    AMP.guides    ? "listening" : "local");
+  var note = document.getElementById("sdk-note");
+  if(note){
+    note.textContent = AMP.ready
+      ? "All three products are running off one key and one identity."
+      : (AMP.reason || "Running in local demo mode.");
+  }
+}
+function setLed(id,on,label){
+  var el = document.getElementById(id); if(!el) return;
+  el.classList.toggle("on",on);
+  el.classList.toggle("off",!on);
+  el.querySelector(".st").textContent = label;
+}
+
+function flushQueue(){
+  while(AMP.queue.length){
+    var q = AMP.queue.shift();
+    try{ window.amplitude[q.m].apply(window.amplitude, q.a); }catch(e){}
+  }
+}
+function ampCall(method,args){
+  if(AMP.ready && window.amplitude && window.amplitude[method]){
+    try{ window.amplitude[method].apply(window.amplitude,args); }catch(e){}
+  }else{
+    AMP.queue.push({m:method,a:args});
+  }
+}
+
+/* ---- the single tracking entry point used everywhere below ---- */
+function track(name, props, kind){
+  props = props || {};
+  props.demo_environment = true;
+  props.demo_persona = STATE.persona;
+  ampCall("track",[name,props]);
+  logEvent(name, props, kind);
+}
+function setUserProps(obj){
+  ampCall("setUserProperties",[obj]);   // convenience wrapper on Browser SDK 2
+  if(AMP.ready && window.amplitude && window.amplitude.identify && window.amplitude.Identify){
+    try{
+      var id = new window.amplitude.Identify();
+      Object.keys(obj).forEach(function(k){ id.set(k,obj[k]); });
+      window.amplitude.identify(id);
+    }catch(e){}
+  }
+  paintProps();
+}
+
+/* =====================================================================
+   2. DEMO DATA — all fictional
+   ===================================================================== */
+var DATA = {
+  holder:"Dana Whitfield",
+  initials:"DW",
+  policy:"LAV-4417-2290",
+  premium:"$214.00 / year",
+  effective:"October 14, 2025",
+  renewal:"October 14, 2026",
+  deductible:"$0",
+  items:[
+    {n:"Round brilliant engagement ring", d:"1.42 ct · platinum setting · appraised 03/2025", v:"$12,400"},
+    {n:"Vintage wristwatch",              d:"1968 automatic · steel case · appraised 11/2024", v:"$3,850"},
+    {n:"Akoya pearl strand",              d:"18 in · 7.5 mm · appraised 03/2025",              v:"$1,900"}
+  ],
+  totalInsured:"$18,150",
+  quote:{
+    ref:"Q-88213",
+    item:"Diamond tennis bracelet",
+    detail:"3.10 ct total weight · white gold",
+    value:"$6,300",
+    premium:"$74.00 / year",
+    saved:"August 9, 2026",
+    expires:"September 8, 2026",
+    step:"Appraisal upload"
+  },
+  articles:[
+    {t:"What an appraisal needs to include",       c:"Purchase help",     m:"3 min"},
+    {t:"Finding a quote you started earlier",       c:"Saved quotes",      m:"2 min"},
+    {t:"Adding an item mid-term",                   c:"Renewal questions", m:"4 min"},
+    {t:"Resetting access to your account",          c:"Account access",    m:"2 min"},
+    {t:"How coverage values are set at renewal",    c:"Renewal questions", m:"5 min"}
+  ]
+};
+
+/* =====================================================================
+   3. AUDIENCE PERSONAS — these drive real user properties, which is
+      what Guides & Surveys targets on. This is the "no extra dev work"
+      story: the properties are already flowing for analytics.
+   ===================================================================== */
+var PERSONAS = {
+  first:{
+    label:"First-time visitor",
+    note:"Never completed a task here",
+    props:{ portal_visits:1, has_saved_quote:false, days_to_renewal:59, lifecycle_stage:"new", help_page_views:0, policy_status:"active" }
+  },
+  stalled:{
+    label:"Saved a quote, never came back",
+    note:"Quote Q-88213 idle 7 days",
+    props:{ portal_visits:4, has_saved_quote:true, quote_age_days:7, days_to_renewal:59, lifecycle_stage:"quote_stalled", help_page_views:1, policy_status:"active" }
+  },
+  renewal:{
+    label:"Inside the renewal window",
+    note:"59 days out, hasn't reviewed",
+    props:{ portal_visits:9, has_saved_quote:false, days_to_renewal:59, lifecycle_stage:"renewal_pending", renewal_reviewed:false, help_page_views:0, policy_status:"active" }
+  },
+  stuck:{
+    label:"Reading help, not progressing",
+    note:"3 articles, no task completed",
+    props:{ portal_visits:6, has_saved_quote:true, days_to_renewal:59, lifecycle_stage:"self_service_stuck", help_page_views:3, policy_status:"active" }
+  }
+};
+
+var STATE = {
+  persona:"stalled",
+  route:"home",
+  dismissed:{},        // guide id -> true
+  answered:{},         // survey id -> true
+  checklist:{},        // checklist step -> done
+  events:[],
+  renewalReviewed:false,
+  quoteResumed:false,
+  helpArticlesOpened:0
+};
+
+/* =====================================================================
+   4. ROUTER + VIEWS
+   ===================================================================== */
+var VIEWS = {};
+
+VIEWS.home = function(){
+  return `
+  <div class="page-head">
+    <div class="eyebrow">Policy ${DATA.policy}</div>
+    <h1>Good afternoon, Dana</h1>
+    <p class="lede">Your jewelry policy is active. Here is everything you can take care of from this page.</p>
+  </div>
+
+  <div class="grid g2" style="margin-bottom:18px">
+    <div class="card pad-lg" id="anchor-policy" data-amp-anchor="policy-summary">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <h2>Your coverage</h2>
+        <span class="badge badge-green">Active</span>
+      </div>
+      <div class="kv"><span>Total insured value</span><b>${DATA.totalInsured}</b></div>
+      <div class="kv"><span>Annual premium</span><b>${DATA.premium}</b></div>
+      <div class="kv"><span>Deductible</span><b>${DATA.deductible}</b></div>
+      <div class="kv"><span>Renews</span><b>${DATA.renewal}</b></div>
+    </div>
+
+    <div class="card pad-lg">
+      <h2 style="margin-bottom:6px">Scheduled items</h2>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:8px">Three items on this policy.</p>
+      <div class="sched">
+        ${DATA.items.map(function(i){return `
+        <div class="sched-row">
+          <div class="nm"><b>${i.n}</b><span>${i.d}</span></div>
+          <div class="val">${i.v}</div>
+        </div>`;}).join("")}
+      </div>
+    </div>
+  </div>
+
+  <h2 style="margin:30px 0 14px">What would you like to do?</h2>
+  <div class="grid g3">
+    <button class="task" data-amp-anchor="task-purchase" data-task="purchase">
+      <div class="ic">${ICON.plus}</div>
+      <b>Insure another item</b>
+      <span>Add a ring, watch, or loose stone to this policy.</span>
+      <div class="go">Start ${ICON.arrow}</div>
+    </button>
+
+    <button class="task" id="anchor-resume" data-amp-anchor="task-resume-quote" data-task="quote">
+      <div class="flagchip">Saved</div>
+      <div class="ic">${ICON.doc}</div>
+      <b>Resume a saved quote</b>
+      <span>You started a quote for a tennis bracelet on ${DATA.quote.saved}.</span>
+      <div class="go">Pick up where you left off ${ICON.arrow}</div>
+    </button>
+
+    <button class="task" data-amp-anchor="task-account" data-task="account">
+      <div class="ic">${ICON.user}</div>
+      <b>Manage your account</b>
+      <span>Contact details, billing, and documents.</span>
+      <div class="go">Open ${ICON.arrow}</div>
+    </button>
+
+    <button class="task" id="anchor-renewal-task" data-amp-anchor="task-renewal" data-task="renewal">
+      <div class="ic">${ICON.cal}</div>
+      <b>Review renewal information</b>
+      <span>Your policy renews ${DATA.renewal}. See what changes.</span>
+      <div class="go">Review ${ICON.arrow}</div>
+    </button>
+
+    <button class="task" data-amp-anchor="task-claim" data-task="claim">
+      <div class="ic">${ICON.shield}</div>
+      <b>Report a loss</b>
+      <span>Start a claim for a lost, stolen, or damaged item.</span>
+      <div class="go">Start a claim ${ICON.arrow}</div>
+    </button>
+
+    <button class="task" data-amp-anchor="task-help" data-task="help">
+      <div class="ic">${ICON.help}</div>
+      <b>Get help</b>
+      <span>Search answers or reach the service team.</span>
+      <div class="go">Open help ${ICON.arrow}</div>
+    </button>
+  </div>`;
+};
+
+VIEWS.quote = function(){
+  var q = DATA.quote;
+  return `
+  <div class="page-head">
+    <div class="eyebrow">Saved quote</div>
+    <h1>Pick up your tennis bracelet quote</h1>
+    <p class="lede">You saved this on ${q.saved}. It holds until ${q.expires}.</p>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1fr 320px;align-items:start">
+    <div class="card pad-lg" id="anchor-quote-card" data-amp-anchor="saved-quote-card">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px">
+        <div>
+          <div class="eyebrow" style="margin-bottom:5px">Reference ${q.ref}</div>
+          <h2>${q.item}</h2>
+          <p style="color:var(--muted);font-size:13.5px;margin-top:3px">${q.detail}</p>
+        </div>
+        <span class="badge badge-amber">Not finished</span>
+      </div>
+
+      <div class="sched" style="margin-bottom:20px">
+        <div class="sched-row"><div class="nm"><b>Appraised value</b><span>Supplied by you</span></div><div class="val">${q.value}</div></div>
+        <div class="sched-row"><div class="nm"><b>Estimated premium</b><span>Added to your existing policy</span></div><div class="val">${q.premium}</div></div>
+        <div class="sched-row"><div class="nm"><b>Where you stopped</b><span>Next step in the quote</span></div><div class="val" style="color:var(--amber)">${q.step}</div></div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <button class="btn btn-primary" id="btn-resume" data-amp-anchor="resume-quote-cta">Resume quote</button>
+        <button class="btn btn-secondary" id="btn-findhelp" data-amp-anchor="quote-help-cta">I need help finding my quote</button>
+        <button class="btn-ghost" id="btn-whatsnext" style="font-size:13px;font-weight:500">What happens next?</button>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card pad">
+        <h3 style="margin-bottom:9px">What you still need</h3>
+        <div style="font-size:13.5px;color:var(--muted);line-height:1.6">
+          A dated appraisal from the last five years, showing the item description and its value. A photo of the receipt works if the purchase was recent.
+        </div>
+      </div>
+      <div class="notice">
+        Quotes hold for 30 days. After ${q.expires} you would start again, and the premium could change.
+      </div>
+    </div>
+  </div>
+  <div id="whatsnext-slot" style="margin-top:16px"></div>`;
+};
+
+VIEWS.renewal = function(){
+  return `
+  <div class="page-head">
+    <div class="eyebrow">Renewal center</div>
+    <h1>Your policy renews October 14</h1>
+    <p class="lede">Nothing is required from you. Reviewing now is how you catch a value that has drifted.</p>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1fr 320px;align-items:start">
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card pad-lg" id="anchor-renewal-card" data-amp-anchor="renewal-date-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <h2>Renewal summary</h2>
+          <span class="badge badge-blue">59 days out</span>
+        </div>
+        <div class="kv"><span>Current term ends</span><b>${DATA.renewal}</b></div>
+        <div class="kv"><span>Renewal premium</span><b>$221.00 / year</b></div>
+        <div class="kv"><span>Change from current</span><b style="color:var(--amber)">+$7.00</b></div>
+        <div class="kv"><span>Items carried forward</span><b>3</b></div>
+        <div style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap">
+          <button class="btn btn-primary" id="btn-review-renewal" data-amp-anchor="review-renewal-cta">Review renewal information</button>
+          <button class="btn btn-secondary" id="btn-renewal-support" data-amp-anchor="renewal-support-cta">Contact support</button>
+        </div>
+      </div>
+
+      <div class="card pad-lg">
+        <h2 style="margin-bottom:5px">What you can change before it renews</h2>
+        <p style="color:var(--muted);font-size:13.5px;margin-bottom:14px">Any of these can be done up to the day the term ends.</p>
+        <div class="sched">
+          <div class="sched-row"><div class="nm"><b>Update an appraised value</b><span>Two appraisals are over 18 months old</span></div><div class="val" style="color:var(--blue)">Review</div></div>
+          <div class="sched-row"><div class="nm"><b>Add or remove an item</b><span>Three items currently scheduled</span></div><div class="val" style="color:var(--blue)">Edit</div></div>
+          <div class="sched-row"><div class="nm"><b>Change how you pay</b><span>Annual, card ending 4402</span></div><div class="val" style="color:var(--blue)">Edit</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card pad">
+      <h3 style="margin-bottom:9px">Why values drift</h3>
+      <div style="font-size:13.5px;color:var(--muted);line-height:1.6">
+        Metal and stone prices move. An appraisal from 2024 may no longer cover what replacement costs today, and a claim pays against the scheduled value.
+      </div>
+    </div>
+  </div>
+  <div id="renewal-slot" style="margin-top:16px"></div>`;
+};
+
+VIEWS.help = function(){
+  var cats = [
+    {t:"Purchase help",     s:"Quoting and buying coverage"},
+    {t:"Saved quotes",      s:"Finding and finishing a quote"},
+    {t:"Account access",    s:"Sign-in and contact details"},
+    {t:"Renewal questions", s:"Terms, values, and payments"}
+  ];
+  return `
+  <div class="page-head">
+    <div class="eyebrow">Help center</div>
+    <h1>Find an answer</h1>
+    <p class="lede">Search, or start with the topic closest to what you are doing.</p>
+  </div>
+
+  <div class="card pad-lg" style="margin-bottom:18px" data-amp-anchor="help-search">
+    <div class="searchbar">
+      ${ICON.search}
+      <input type="search" id="help-search" placeholder="Search help — try &quot;appraisal&quot; or &quot;saved quote&quot;" autocomplete="off">
+    </div>
+    <div class="grid g2" style="margin-top:16px">
+      ${cats.map(function(c){return `<button class="cat" data-cat="${c.t}"><b>${c.t}</b><span>${c.s}</span></button>`;}).join("")}
+    </div>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1fr 320px;align-items:start">
+    <div class="card pad-lg" id="anchor-articles">
+      <h2 style="margin-bottom:4px">Suggested for you</h2>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:10px">Based on the quote you have open.</p>
+      ${DATA.articles.map(function(a,i){return `
+        <button class="article" data-article="${a.t}">
+          <b>${a.t}</b>
+          <span class="meta">${a.c} · ${a.m}</span>
+        </button>`;}).join("")}
+    </div>
+
+    <div class="card pad" id="anchor-escalate" data-amp-anchor="still-need-help">
+      <h3 style="margin-bottom:7px">Still need help?</h3>
+      <p style="font-size:13.5px;color:var(--muted);margin-bottom:14px">
+        A licensed representative can pick up from whatever you were doing. You will not have to explain it twice.
+      </p>
+      <button class="btn btn-primary btn-block" id="btn-escalate">Contact the service team</button>
+      <div style="font-size:12px;color:var(--muted-2);margin-top:10px;text-align:center">Weekdays, 8am–7pm ET</div>
+    </div>
+  </div>
+  <div id="help-slot" style="margin-top:16px"></div>`;
+};
+
+VIEWS.done = function(){
+  var what = STATE.lastCompletion || "quote";
+  var isQuote = what === "quote";
+  return `
+  <div style="max-width:600px;margin:20px auto;text-align:center">
+    <div style="width:56px;height:56px;border-radius:50%;background:var(--green-wash);color:var(--green);display:grid;place-items:center;margin:0 auto 18px">
+      ${ICON.check}
+    </div>
+    <div class="eyebrow" style="text-align:center">${isQuote ? "Quote " + DATA.quote.ref : "Renewal review"}</div>
+    <h1>${isQuote ? "Your bracelet is added" : "You are all set for renewal"}</h1>
+    <p class="lede" style="margin:12px auto 0;text-align:left">
+      ${isQuote
+        ? "The tennis bracelet is now scheduled on policy " + DATA.policy + ". Your annual premium goes from " + DATA.premium + " to $288.00 / year, effective today. A confirmation is on its way to your email."
+        : "Nothing further is needed. Your policy renews on " + DATA.renewal + " at $221.00 / year, with all three items carried forward. We will send the documents two weeks beforehand."}
+    </p>
+
+    <div class="card pad-lg" style="margin-top:26px;text-align:left" id="anchor-done">
+      <h3 style="margin-bottom:12px">What happens next</h3>
+      <div class="sched">
+        <div class="sched-row"><div class="nm"><b>Today</b><span>Confirmation email with updated documents</span></div></div>
+        <div class="sched-row"><div class="nm"><b>Within 2 days</b><span>Updated schedule of items in your account</span></div></div>
+        <div class="sched-row"><div class="nm"><b>${isQuote ? "Next billing date" : "September 30"}</b><span>${isQuote ? "Adjusted premium appears on your invoice" : "Renewal documents sent"}</span></div></div>
+      </div>
+      <div style="margin-top:20px;display:flex;gap:12px">
+        <a class="btn btn-primary" href="#/home">Back to overview</a>
+        <a class="btn btn-secondary" href="#/help">Get help</a>
+      </div>
+    </div>
+  </div>`;
+};
+
+VIEWS.pilot = function(){
+  var f = STATE.pilot || {};
+  return `
+  <div class="page-head">
+    <div class="eyebrow">Session close</div>
+    <h1>Pilot plan</h1>
+    <p class="lede">Fill this in together on the call. One journey, one audience, one question, one owner.</p>
+  </div>
+
+  <div class="card pad-lg" style="margin-bottom:20px">
+    <div class="plan-row">
+      <label>Pilot journey<span class="hint">Pick one</span></label>
+      <select id="p-journey">
+        <option value="">Choose a journey…</option>
+        <option>Saved-quote recovery</option>
+        <option>Renewal review</option>
+        <option>Self-service help</option>
+      </select>
+    </div>
+    <div class="plan-row">
+      <label>Target audience<span class="hint">Who should see it</span></label>
+      <input type="text" id="p-audience" placeholder="e.g. saved a quote, no return in 5+ days">
+    </div>
+    <div class="plan-row">
+      <label>Who should not see it<span class="hint">Just as important</span></label>
+      <input type="text" id="p-exclude" placeholder="e.g. anyone already past the appraisal step">
+    </div>
+    <div class="plan-row">
+      <label>Guide goal<span class="hint">The one next action</span></label>
+      <input type="text" id="p-goal" placeholder="e.g. resume the saved quote">
+    </div>
+    <div class="plan-row">
+      <label>Survey question<span class="hint">One question, asked once</span></label>
+      <input type="text" id="p-question" placeholder="e.g. Were you able to find and resume your quote?">
+    </div>
+    <div class="plan-row">
+      <label>Behavioral success signal<span class="hint">The event that proves it</span></label>
+      <input type="text" id="p-signal" placeholder="e.g. Quote Resumed within the same session">
+    </div>
+    <div class="plan-row">
+      <label>Owner<span class="hint">Who reads the responses</span></label>
+      <input type="text" id="p-owner" placeholder="Name and team">
+    </div>
+    <div class="plan-row">
+      <label>Review date<span class="hint">When you decide to keep, change, or retire it</span></label>
+      <input type="date" id="p-date">
+    </div>
+    <div style="margin-top:18px;display:flex;gap:12px;align-items:center">
+      <button class="btn btn-primary" id="p-save">Save to this session</button>
+      <span style="font-size:12.5px;color:var(--muted-2)" id="p-saved"></span>
+    </div>
+  </div>
+
+  <h2 style="margin:32px 0 6px">Measurement loop</h2>
+  <p class="lede" style="margin-bottom:16px">Every number below is a placeholder. Real figures come from the pilot, not from this page.</p>
+  <div class="grid g3">
+    ${[
+      ["Guide exposure","Analytics"],
+      ["Intended next action taken","Analytics"],
+      ["Self-service completion","Analytics"],
+      ["Escalation to service team","Analytics"],
+      ["Survey response rate","Guides &amp; Surveys"],
+      ["Ease score","Guides &amp; Surveys"]
+    ].map(function(m){return `
+      <div class="metric">
+        <div class="lbl">${m[0]}</div>
+        <div class="ph">— —</div>
+        <div class="src">Placeholder · ${m[1]}</div>
+      </div>`;}).join("")}
+  </div>
+
+  <div class="notice" style="margin-top:20px">
+    A guide being shown is not an outcome. The pairing that matters is whether more people took the next step, and whether they said it got easier. Neither one alone proves the other.
+  </div>`;
+};
+
+/* ---------- icons ---------- */
+var ICON = {
+  arrow:'<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  plus:'<svg width="17" height="17" viewBox="0 0 20 20" fill="none"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>',
+  doc:'<svg width="17" height="17" viewBox="0 0 20 20" fill="none"><path d="M5 2.5h6l4 4v11H5z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M11 2.5v4h4M7.5 11h5M7.5 14h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  user:'<svg width="17" height="17" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="7" r="3" stroke="currentColor" stroke-width="1.6"/><path d="M4 17c0-3 2.7-5 6-5s6 2 6 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  cal:'<svg width="17" height="17" viewBox="0 0 20 20" fill="none"><rect x="3" y="4.5" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M3 8.5h14M7 2.5v4M13 2.5v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  shield:'<svg width="17" height="17" viewBox="0 0 20 20" fill="none"><path d="M10 2.5l6 2.2v5c0 4-2.6 6.7-6 7.8-3.4-1.1-6-3.8-6-7.8v-5z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
+  help:'<svg width="17" height="17" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7.2" stroke="currentColor" stroke-width="1.6"/><path d="M8.2 8a1.9 1.9 0 113.1 1.5c-.7.5-1.3.9-1.3 1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="10" cy="14" r=".9" fill="currentColor"/></svg>',
+  search:'<svg width="17" height="17" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.7"/><path d="M13.2 13.2L17 17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+  check:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  tick:'<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2.5 6.2l2.4 2.4L9.5 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
+
+/* =====================================================================
+   5. GUIDE + SURVEY DEFINITIONS (local simulations)
+   Each has a `why` string — that is the "Why am I seeing this?" panel,
+   showing the fictional targeting rule that would have fired.
+   ===================================================================== */
+var GUIDES = {
+
+  welcome:{
+    kind:"guide", type:"checklist", route:"home",
+    title:"Three things you can do from here",
+    body:"Most people come here for one of these. Pick whichever applies.",
+    why:"First-time visitor · portal_visits = 1 · no completed task",
+    steps:[
+      {id:"s1", label:"Look over your scheduled items", go:null},
+      {id:"s2", label:"Finish the quote you saved", go:"#/quote"},
+      {id:"s3", label:"Check what changes at renewal", go:"#/renewal"}
+    ],
+    cta:{label:"Finish my saved quote", go:"#/quote"}
+  },
+
+  resumeNudge:{
+    kind:"guide", type:"tooltip", route:"home", anchor:"#anchor-resume",
+    title:"Your quote is still here",
+    body:"You stopped at the appraisal step on the tennis bracelet. It takes about two minutes from where you left off.",
+    why:"has_saved_quote = true · quote_age_days ≥ 5 · no Quote Resumed event",
+    cta:{label:"Open the quote", go:"#/quote"},
+    secondary:"Not now"
+  },
+
+  quoteContext:{
+    kind:"guide", type:"tooltip", route:"quote", anchor:"#anchor-quote-card",
+    title:"You need one thing to finish",
+    body:"Upload a dated appraisal for the bracelet. Photos of a recent receipt work too. Everything else on the quote is already filled in.",
+    why:"Page = saved quote · quote_step = appraisal_upload",
+    cta:{label:"Resume quote", act:"resume"},
+    secondary:"Got it"
+  },
+
+  renewalGuide:{
+    kind:"guide", type:"tooltip", route:"renewal", anchor:"#anchor-renewal-card",
+    title:"Two of your appraisals are aging",
+    body:"The ring and the pearls were last valued over 18 months ago. Reviewing now means a claim would pay against a current value.",
+    why:"days_to_renewal ≤ 60 · renewal_reviewed = false",
+    cta:{label:"Review renewal information", act:"review"},
+    secondary:"Learn more first"
+  },
+
+  helpGuide:{
+    kind:"guide", type:"tooltip", route:"help", anchor:"#anchor-escalate",
+    title:"Still looking for the same thing?",
+    body:"You have opened a few articles about appraisals. A representative can look at your quote directly and tell you what will be accepted.",
+    why:"help_page_views ≥ 3 · no task completed this session",
+    cta:{label:"Contact the service team", act:"escalate"},
+    secondary:"Keep reading"
+  }
+};
+
+var SURVEYS = {
+
+  quoteSurvey:{
+    kind:"survey", type:"modal",
+    title:"Were you able to find and resume your quote?",
+    why:"Fires once, after Quote Resumed or after leaving the quote page",
+    options:["Yes","Not yet","I need help"],
+    followUpOn:["Not yet","I need help"],
+    followUp:"What got in your way?",
+    thanks:"Thanks — that goes straight to the team that owns this page."
+  },
+
+  renewalSurvey:{
+    kind:"survey", type:"modal",
+    title:"How easy was it to find what you needed?",
+    why:"Fires once, after Renewal Review Completed",
+    scale:{min:1,max:5,minLabel:"Very hard",maxLabel:"Very easy"},
+    followUp:"Anything you would change? (optional)",
+    thanks:"Thanks. Ease scores get reviewed alongside whether people actually completed the review."
+  },
+
+  helpSurvey:{
+    kind:"survey", type:"tooltip", anchor:"#anchor-articles",
+    title:"Did this answer your question?",
+    why:"Fires after an article is opened, once per session",
+    options:["Yes","Partly","No"],
+    followUpOn:["Partly","No"],
+    followUp:"What were you trying to do?",
+    escalateOn:["Partly","No"],
+    thanks:"Thanks. If you still need a person, the service team is one click away."
+  }
+};
+
+/* =====================================================================
+   6. GUIDE RENDERING
+   ===================================================================== */
+var guidesEl = document.getElementById("guides");
+var scrimEl = document.getElementById("scrim");
+var openGuide = null;
+
+function closeGuide(reason){
+  if(!openGuide) return;
+  var id = openGuide.id;
+  var def = openGuide.def;
+  guidesEl.innerHTML = "";
+  scrimEl.classList.remove("on");
+  document.querySelectorAll(".amp-spot").forEach(function(e){e.classList.remove("amp-spot");});
+  openGuide = null;
+  if(reason === "dismiss"){
+    STATE.dismissed[id] = true;
+    track(def.kind === "survey" ? "Survey Dismissed" : "Guide Dismissed",
+          {guide_id:id, guide_name:def.title}, def.kind === "survey" ? "s" : "g");
+  }
+}
+
+function showGuide(id, def){
+  if(STATE.dismissed[id]) { toast("That one is dismissed. Use “Clear all dismissals” in the rail."); return; }
+  if(def.kind === "survey" && STATE.answered[id]) { toast("Already answered this session."); return; }
+  closeGuide();
+
+  var el = document.createElement("div");
+  el.className = "gd" + (def.type === "modal" ? " modal" : "");
+  el.setAttribute("role","dialog");
+  el.setAttribute("aria-label", def.title);
+
+  var srcLabel = AMP.guides ? "Amplitude · simulated" : "Simulated locally";
+  var body = "";
+
+  if(def.kind === "guide" && def.type === "checklist"){
+    var doneCount = def.steps.filter(function(s){return STATE.checklist[s.id];}).length;
+    body = `
+      <div class="gd-in">
+        <h4>${def.title}</h4>
+        <p>${def.body}</p>
+        <div class="gd-steps">
+          ${def.steps.map(function(s){
+            var done = STATE.checklist[s.id];
+            return `<button class="gd-step ${done?"done":""}" data-step="${s.id}" data-go="${s.go||""}">
+              <span class="box">${done?ICON.tick:""}</span><b>${s.label}</b>
+            </button>`;
+          }).join("")}
+        </div>
+        <div class="gd-prog">${doneCount} of ${def.steps.length} done</div>
+        <div class="gd-act">
+          <button class="btn btn-primary btn-sm" data-cta="1">${def.cta.label}</button>
+        </div>
+      </div>`;
+  } else if(def.kind === "guide"){
+    body = `
+      <div class="gd-in">
+        <h4>${def.title}</h4>
+        <p>${def.body}</p>
+        <div class="gd-act">
+          <button class="btn btn-primary btn-sm" data-cta="1">${def.cta.label}</button>
+          ${def.secondary ? `<button class="btn-ghost" data-dismiss="1" style="font-size:13px">${def.secondary}</button>` : ""}
+        </div>
+      </div>`;
+  } else if(def.scale){
+    body = `
+      <div class="gd-in">
+        <h4>${def.title}</h4>
+        <div class="gd-scale">
+          ${[1,2,3,4,5].map(function(n){return `<button data-score="${n}">${n}</button>`;}).join("")}
+        </div>
+        <div class="gd-scale-lbl"><span>${def.scale.minLabel}</span><span>${def.scale.maxLabel}</span></div>
+        <div class="gd-follow" style="display:none">
+          <label class="fl">${def.followUp}</label>
+          <textarea placeholder="Optional"></textarea>
+          <div class="gd-act"><button class="btn btn-primary btn-sm" data-submit="1">Send</button></div>
+        </div>
+      </div>`;
+  } else {
+    body = `
+      <div class="gd-in">
+        <h4>${def.title}</h4>
+        <div class="gd-opts">
+          ${def.options.map(function(o){return `<button class="gd-opt" data-opt="${o}">${o}</button>`;}).join("")}
+        </div>
+        <div class="gd-follow" style="display:none">
+          <label class="fl">${def.followUp}</label>
+          <textarea placeholder="Optional"></textarea>
+          <div class="gd-act"><button class="btn btn-primary btn-sm" data-submit="1">Send</button></div>
+        </div>
+      </div>`;
+  }
+
+  el.innerHTML = `
+    <div class="gd-top">
+      <span class="gd-src">${srcLabel}</span>
+      <button class="gd-x" data-dismiss="1" aria-label="Dismiss">&times;</button>
+    </div>
+    ${body}
+    <div class="gd-why"><b>Why am I seeing this?</b><br>${def.why}</div>
+    ${def.type !== "modal" ? '<div class="gd-arrow"></div>' : ""}`;
+
+  guidesEl.appendChild(el);
+  openGuide = {id:id, def:def, el:el};
+
+  if(def.type === "modal") scrimEl.classList.add("on");
+  else position(el, def.anchor);
+
+  track(def.kind === "survey" ? "Survey Shown" : "Guide Shown",
+        {guide_id:id, guide_name:def.title, guide_type:def.type},
+        def.kind === "survey" ? "s" : "g");
+
+  wireGuide(el, id, def);
+}
+
+function position(el, sel){
+  var anchor = sel ? document.querySelector(sel) : null;
+  if(!anchor){
+    el.style.left = "50%"; el.style.top = "120px"; el.style.transform = "translateX(-50%)";
+    return;
+  }
+  anchor.classList.add("amp-spot");
+  var r = anchor.getBoundingClientRect();
+  var w = 340, gap = 14;
+  var left = r.left + r.width/2 - w/2;
+  left = Math.max(14, Math.min(left, window.innerWidth - w - (document.body.classList.contains("rail-open") ? 356 : 14)));
+  var top = r.bottom + gap;
+  var arrowUp = true;
+  if(top + el.offsetHeight > window.innerHeight - 14){
+    top = r.top - el.offsetHeight - gap;
+    arrowUp = false;
+  }
+  top = Math.max(14, top);
+  el.style.left = left + "px";
+  el.style.top = top + "px";
+  var arrow = el.querySelector(".gd-arrow");
+  if(arrow){
+    var ax = Math.max(16, Math.min(r.left + r.width/2 - left - 5.5, w - 28));
+    arrow.style.left = ax + "px";
+    if(arrowUp){ arrow.style.top = "-6px"; arrow.style.transform = "rotate(45deg)"; }
+    else { arrow.style.bottom = "-6px"; arrow.style.transform = "rotate(225deg)"; }
+  }
+}
+
+function wireGuide(el, id, def){
+  el.querySelectorAll("[data-dismiss]").forEach(function(b){
+    b.onclick = function(){ closeGuide("dismiss"); };
+  });
+
+  el.querySelectorAll("[data-step]").forEach(function(b){
+    b.onclick = function(){
+      var sid = b.getAttribute("data-step");
+      STATE.checklist[sid] = !STATE.checklist[sid];
+      track("Guide Step Completed",{guide_id:id, step_id:sid},"g");
+      var go = b.getAttribute("data-go");
+      if(go && STATE.checklist[sid]){ closeGuide(); location.hash = go; }
+      else showGuide(id, def);
+    };
+  });
+
+  var cta = el.querySelector("[data-cta]");
+  if(cta) cta.onclick = function(){
+    track("Guide CTA Clicked",{guide_id:id, guide_name:def.title, cta_label:def.cta.label},"g");
+    var act = def.cta.act;
+    closeGuide();
+    if(def.cta.go) location.hash = def.cta.go;
+    else if(act === "resume") resumeQuote();
+    else if(act === "review") reviewRenewal();
+    else if(act === "escalate") escalate();
+  };
+
+  el.querySelectorAll("[data-opt]").forEach(function(b){
+    b.onclick = function(){
+      el.querySelectorAll("[data-opt]").forEach(function(x){x.classList.remove("sel");});
+      b.classList.add("sel");
+      var val = b.getAttribute("data-opt");
+      el.dataset.answer = val;
+      var needsFollow = (def.followUpOn||[]).indexOf(val) !== -1;
+      if(needsFollow){
+        el.querySelector(".gd-follow").style.display = "block";
+        if(def.type !== "modal") position(el, def.anchor);
+      } else {
+        submitSurvey(el, id, def, val, "");
+      }
+    };
+  });
+
+  el.querySelectorAll("[data-score]").forEach(function(b){
+    b.onclick = function(){
+      el.querySelectorAll("[data-score]").forEach(function(x){x.classList.remove("sel");});
+      b.classList.add("sel");
+      el.dataset.answer = b.getAttribute("data-score");
+      el.querySelector(".gd-follow").style.display = "block";
+    };
+  });
+
+  var sub = el.querySelector("[data-submit]");
+  if(sub) sub.onclick = function(){
+    var ta = el.querySelector("textarea");
+    submitSurvey(el, id, def, el.dataset.answer || "", ta ? ta.value : "");
+  };
+}
+
+function submitSurvey(el, id, def, answer, comment){
+  STATE.answered[id] = true;
+  track("Survey Response Submitted",{
+    survey_id:id,
+    survey_question:def.title,
+    response:answer,
+    has_comment: !!comment,
+    comment_length: comment ? comment.length : 0
+  },"s");
+
+  var escalates = (def.escalateOn||[]).indexOf(answer) !== -1;
+  el.innerHTML = `
+    <div class="gd-top"><span class="gd-src">${AMP.guides ? "Amplitude · simulated" : "Simulated locally"}</span>
+    <button class="gd-x" data-dismiss="1" aria-label="Close">&times;</button></div>
+    <div class="gd-thanks">
+      <div class="chk">${ICON.check}</div>
+      <b>Recorded</b>
+      <span>${def.thanks}</span>
+      ${escalates ? '<div style="margin-top:15px"><button class="btn btn-primary btn-sm" data-esc="1">Contact the service team</button></div>' : ""}
+    </div>
+    <div class="gd-why"><b>Response captured</b><br>Answer: ${answer}${comment ? " · comment attached" : ""}</div>`;
+
+  el.querySelector("[data-dismiss]").onclick = function(){ closeGuide(); };
+  var e = el.querySelector("[data-esc]");
+  if(e) e.onclick = function(){ closeGuide(); escalate(); };
+  if(def.type !== "modal") position(el, def.anchor);
+  if(!escalates) setTimeout(function(){ if(openGuide && openGuide.id === id) closeGuide(); }, 3400);
+}
+
+/* =====================================================================
+   7. PRODUCT ACTIONS — these are the real behavioral events
+   ===================================================================== */
+function resumeQuote(){
+  STATE.quoteResumed = true;
+  STATE.lastCompletion = "quote";
+  track("Quote Resumed",{quote_ref:DATA.quote.ref, quote_value:6300, item_type:"bracelet"});
+  setUserProps({has_saved_quote:false, quote_completed:true});
+  location.hash = "#/done";
+  setTimeout(function(){ maybeShow("quoteSurvey", SURVEYS.quoteSurvey); }, 1300);
+}
+
+function reviewRenewal(){
+  STATE.renewalReviewed = true;
+  STATE.lastCompletion = "renewal";
+  track("Renewal Review Completed",{days_to_renewal:59, items_carried:3});
+  setUserProps({renewal_reviewed:true});
+  location.hash = "#/done";
+  setTimeout(function(){ maybeShow("renewalSurvey", SURVEYS.renewalSurvey); }, 1300);
+}
+
+function escalate(){
+  track("Escalation Started",{
+    from_route:STATE.route,
+    context:"Service team receives the page, the guide shown, and any survey answer."
+  });
+  toast("Request sent. In a real build, the rep sees which guide was shown and what was answered.");
+}
+
+function maybeShow(id, def){
+  if(STATE.dismissed[id] || STATE.answered[id]) return;
+  showGuide(id, def);
+}
+
+/* =====================================================================
+   8. ROUTER
+   ===================================================================== */
+function render(){
+  var hash = location.hash.replace("#/","") || "home";
+  if(!VIEWS[hash]) hash = "home";
+  STATE.route = hash;
+  closeGuide();
+  document.getElementById("view").innerHTML = VIEWS[hash]();
+  document.querySelectorAll("#nav a").forEach(function(a){
+    a.classList.toggle("active", a.getAttribute("data-route") === hash);
+  });
+  window.scrollTo(0,0);
+  track("Page Viewed",{page_name:hash, page_title:document.title});
+  wirePage(hash);
+  autoGuide(hash);
+}
+
+function wirePage(route){
+  document.querySelectorAll("[data-task]").forEach(function(b){
+    b.onclick = function(){
+      var t = b.getAttribute("data-task");
+      track("Task Card Clicked",{task:t});
+      if(t === "quote") location.hash = "#/quote";
+      else if(t === "renewal") location.hash = "#/renewal";
+      else if(t === "help") location.hash = "#/help";
+      else toast("Not built out for this demo — the three journeys we are walking are quote, renewal, and help.");
+    };
+  });
+
+  if(route === "quote"){
+    document.getElementById("btn-resume").onclick = resumeQuote;
+    document.getElementById("btn-findhelp").onclick = function(){
+      track("Help Requested",{from:"saved quote page"});
+      location.hash = "#/help";
+    };
+    document.getElementById("btn-whatsnext").onclick = function(){
+      track("Support Link Clicked",{link:"What happens next?"});
+      document.getElementById("whatsnext-slot").innerHTML =
+        '<div class="notice">After you upload the appraisal, the bracelet is added to your policy the same day and your premium adjusts on the next invoice. No new policy, no new renewal date.</div>';
+    };
+  }
+
+  if(route === "renewal"){
+    document.getElementById("btn-review-renewal").onclick = reviewRenewal;
+    document.getElementById("btn-renewal-support").onclick = escalate;
+  }
+
+  if(route === "help"){
+    var s = document.getElementById("help-search");
+    var t;
+    s.oninput = function(){
+      clearTimeout(t);
+      t = setTimeout(function(){
+        if(s.value.length > 2) track("Help Search Performed",{query_length:s.value.length});
+      },700);
+    };
+    document.querySelectorAll("[data-cat]").forEach(function(c){
+      c.onclick = function(){
+        track("Help Category Opened",{category:c.getAttribute("data-cat")});
+        bumpHelp();
+      };
+    });
+    document.querySelectorAll("[data-article]").forEach(function(a){
+      a.onclick = function(){
+        track("Help Article Opened",{article:a.getAttribute("data-article")});
+        bumpHelp();
+        setTimeout(function(){ maybeShow("helpSurvey", SURVEYS.helpSurvey); }, 900);
+      };
+    });
+    document.getElementById("btn-escalate").onclick = escalate;
+  }
+
+  if(route === "pilot"){
+    var keys = ["journey","audience","exclude","goal","question","signal","owner","date"];
+    keys.forEach(function(k){
+      var el = document.getElementById("p-"+k);
+      if(el && STATE.pilot && STATE.pilot[k]) el.value = STATE.pilot[k];
+    });
+    document.getElementById("p-save").onclick = function(){
+      STATE.pilot = {};
+      keys.forEach(function(k){
+        var el = document.getElementById("p-"+k);
+        if(el) STATE.pilot[k] = el.value;
+      });
+      track("Pilot Plan Saved",{journey:STATE.pilot.journey || "unspecified"});
+      document.getElementById("p-saved").textContent = "Saved for this session. Reloading the page clears it.";
+    };
+  }
+}
+
+/* auto-fire the contextual guide for a route, based on the persona */
+function autoGuide(route){
+  var p = STATE.persona;
+  setTimeout(function(){
+    if(route === "home"){
+      if(p === "first") maybeShow("welcome", GUIDES.welcome);
+      else if(p === "stalled") maybeShow("resumeNudge", GUIDES.resumeNudge);
+    }
+    if(route === "quote" && (p === "stalled" || p === "first")) maybeShow("quoteContext", GUIDES.quoteContext);
+    if(route === "renewal" && p === "renewal") maybeShow("renewalGuide", GUIDES.renewalGuide);
+    if(route === "help" && p === "stuck") maybeShow("helpGuide", GUIDES.helpGuide);
+  }, 850);
+}
+
+function bumpHelp(){
+  STATE.helpArticlesOpened++;
+  if(STATE.helpArticlesOpened === 3 && STATE.persona !== "stuck"){
+    setUserProps({help_page_views:3, lifecycle_stage:"self_service_stuck"});
+    setTimeout(function(){ maybeShow("helpGuide", GUIDES.helpGuide); }, 1200);
+  }
+}
+
+/* =====================================================================
+   9. RAIL
+   ===================================================================== */
+function paintPersonas(){
+  var wrap = document.getElementById("personas");
+  wrap.innerHTML = Object.keys(PERSONAS).map(function(k){
+    var p = PERSONAS[k];
+    return `<button class="persona ${k===STATE.persona?"sel":""}" data-persona="${k}">
+      <b>${p.label}</b><span>${p.note}</span></button>`;
+  }).join("");
+  wrap.querySelectorAll("[data-persona]").forEach(function(b){
+    b.onclick = function(){
+      STATE.persona = b.getAttribute("data-persona");
+      STATE.dismissed = {}; STATE.answered = {}; STATE.checklist = {};
+      setUserProps(PERSONAS[STATE.persona].props);
+      track("Demo Persona Switched",{persona:STATE.persona, persona_label:PERSONAS[STATE.persona].label});
+      paintPersonas();
+      closeGuide();
+      autoGuide(STATE.route);
+      toast("Audience switched to “" + PERSONAS[STATE.persona].label + "”. Targeting recalculated.");
+    };
+  });
+}
+
+function paintProps(){
+  var p = PERSONAS[STATE.persona].props;
+  document.getElementById("props").innerHTML = Object.keys(p).map(function(k){
+    return `<div><span class="k">${k}</span><span class="v">${String(p[k])}</span></div>`;
+  }).join("");
+}
+
+function paintTriggers(){
+  var rows = [
+    ["welcome",     "guide",  "Welcome checklist (home)"],
+    ["resumeNudge", "guide",  "Saved-quote nudge (home)"],
+    ["quoteContext","guide",  "Appraisal guide (quote)"],
+    ["renewalGuide","guide",  "Renewal guide (renewal)"],
+    ["helpGuide",   "guide",  "Stuck-in-help guide (help)"],
+    ["quoteSurvey", "survey", "Did you resume your quote?"],
+    ["renewalSurvey","survey","Ease score, 1–5"],
+    ["helpSurvey",  "survey", "Did this answer your question?"]
+  ];
+  document.getElementById("triggers").innerHTML = rows.map(function(r){
+    return `<button class="trig" data-trig="${r[0]}" data-kind="${r[1]}">
+      <span class="tag tag-${r[1]==="guide"?"g":"s"}">${r[1]}</span><span>${r[2]}</span></button>`;
+  }).join("");
+  document.querySelectorAll("[data-trig]").forEach(function(b){
+    b.onclick = function(){
+      var id = b.getAttribute("data-trig");
+      var def = GUIDES[id] || SURVEYS[id];
+      STATE.dismissed[id] = false; STATE.answered[id] = false;
+      if(def.route && STATE.route !== def.route){
+        location.hash = "#/" + def.route;
+        setTimeout(function(){ showGuide(id, def); }, 350);
+      } else {
+        showGuide(id, def);
+      }
+    };
+  });
+}
+
+function logEvent(name, props, kind){
+  var s = document.getElementById("stream");
+  if(STATE.events.length === 0) s.innerHTML = "";
+  var t = new Date().toLocaleTimeString([], {hour12:false, hour:"2-digit", minute:"2-digit", second:"2-digit"});
+  STATE.events.unshift(name);
+  var row = document.createElement("div");
+  row.className = "ev" + (kind ? " " + kind : "");
+  row.innerHTML = '<span class="t">' + t + '</span><span class="n">' + name + '</span>';
+  s.insertBefore(row, s.firstChild);
+  while(s.children.length > 40) s.removeChild(s.lastChild);
+}
+
+function toast(msg){
+  var w = document.getElementById("toasts");
+  var d = document.createElement("div");
+  d.className = "toast";
+  d.innerHTML = '<span class="tm">demo</span><span>' + msg + '</span>';
+  w.appendChild(d);
+  setTimeout(function(){ d.style.opacity = "0"; d.style.transition = "opacity .3s"; }, 4200);
+  setTimeout(function(){ d.remove(); }, 4600);
+}
+
+/* =====================================================================
+   10. BOOT
+   ===================================================================== */
+document.getElementById("railToggle").onclick = function(){
+  document.body.classList.add("rail-open");
+  setTimeout(function(){ if(openGuide) position(openGuide.el, openGuide.def.anchor); }, 250);
+};
+document.getElementById("railClose").onclick = function(){
+  document.body.classList.remove("rail-open");
+  setTimeout(function(){ if(openGuide) position(openGuide.el, openGuide.def.anchor); }, 250);
+};
+document.getElementById("resetGuides").onclick = function(){
+  STATE.dismissed = {}; STATE.answered = {}; STATE.checklist = {};
+  toast("All dismissals cleared. Guides will fire again.");
+};
+scrimEl.onclick = function(){ closeGuide("dismiss"); };
+document.addEventListener("keydown", function(e){
+  if(e.key === "Escape") closeGuide("dismiss");
+});
+window.addEventListener("hashchange", render);
+window.addEventListener("resize", function(){
+  if(openGuide && openGuide.def.type !== "modal") position(openGuide.el, openGuide.def.anchor);
+});
+window.addEventListener("scroll", function(){
+  if(openGuide && openGuide.def.type !== "modal") position(openGuide.el, openGuide.def.anchor);
+}, {passive:true});
+
+document.getElementById("avatar").textContent = DATA.initials;
+document.getElementById("acct-name").textContent = DATA.holder;
+document.getElementById("acct-policy").textContent = DATA.policy;
+
+loadAmplitude();
+paintPersonas();
+paintProps();
+paintTriggers();
+document.body.classList.add("rail-open");
+setUserProps(PERSONAS[STATE.persona].props);
+render();
+</script>
+</body>
+</html>
