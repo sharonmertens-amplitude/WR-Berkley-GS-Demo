@@ -19,7 +19,11 @@ Two lines below it:
 ```js
 var SERVER_ZONE = "US";                  // set to "EU" if the project lives in the EU region
 var SESSION_REPLAY_SAMPLE_RATE = 1;      // 1 = capture every session (what you want live)
+var SIMULATED_GUIDES = true;             // built-in demo guides on/off — see section 3a
+var DEMO_USER_ID = "demo-dana-whitfield";// one identity across all three products
 ```
+
+`DEMO_USER_ID` matters more than it looks. Without it every event lands as "Anonymous User," your own session is hard to find in Session Replay, and Guides & Surveys targeting rides on a rotating device ID instead of a stable person. Change the string if two people are demoing at the same time, so you don't collide.
 
 That's it. The page works fully **before** you add a key — every guide and survey runs locally — so you can click through it right now.
 
@@ -63,13 +67,29 @@ Toggle with the **Presenter controls** tab on the right edge. Four sections:
 
 **Trigger locally** — fire any guide or survey on demand, regardless of persona. Use this if a moment doesn't auto-fire, or to re-show one you dismissed. "Clear all dismissals" resets everything.
 
+**Simulated guides — on/off** — see 3a below.
+
 **Event stream** — live feed of every event as it fires. Blue = guide, gold = survey. This is what makes the loop visible in the room: guide fires → behavior event lands → survey response lands, all in one column.
 
 Everything is in-memory. **Reloading the page resets the whole demo** — which is what you want between run-throughs.
 
 ---
 
-## 4. Presenter script — screen by screen
+## 3a. Simulated guides — why they exist and when to switch them off
+
+The built-in guides are hardcoded JavaScript, labeled **"Simulated locally"** or **"Amplitude · simulated"** in their top-left corner. They exist so the demo works before anything is published in Amplitude, and they stay useful as a fallback if the network misbehaves in the room.
+
+**They are not a substitute for real guides.** A simulated guide can't show targeting evaluating against live user properties, produces no guide analytics in Amplitude, and can't be edited in front of the customer. If someone asks how long it took to build, the honest answer for a simulated one — "I wrote it in code" — is exactly the wrong answer for a product whose pitch is that you don't need engineering.
+
+**Two ways to switch them off:**
+
+*Permanently* — set `var SIMULATED_GUIDES = false;` at the top of `index.html` and commit.
+
+*Live, mid-demo* — the **Simulated guides** toggle at the top of the "Trigger locally" section in the rail. No redeploy.
+
+**What "off" changes:** nothing auto-fires as you browse, so only guides genuinely published in Amplitude appear. Everything else stays intact — the manual trigger buttons still work as a fallback, personas still set user properties, and all behavioral events still fire (real guides may be targeting on them).
+
+**Recommended for the session:** build the real guides, switch simulated off, and leave the rail triggers as your silent safety net. If a real guide doesn't render, tap the rail and keep talking.
 
 ### Screen 1 · Overview (`#/home`)
 **Persona:** Saved a quote, never came back

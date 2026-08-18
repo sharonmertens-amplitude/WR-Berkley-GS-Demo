@@ -40,7 +40,7 @@
      Use a DEMO / SANDBOX project key. Never a customer production key.
      Find it in Amplitude: Settings -> Projects -> [project] -> General.
      ------------------------------------------------------------------ */
-  var AMPLITUDE_API_KEY = "e6ed7f808c0201ed2befb97e6d3a5947";
+  var AMPLITUDE_API_KEY = "PASTE_YOUR_PROJECT_API_KEY_HERE";
 
   /* Set to "EU" if the Amplitude org lives in the EU data region.
      Wrong zone = events silently never arrive. */
@@ -50,6 +50,26 @@
      you want for a live demo. Lower it if you reuse this page for volume
      testing. */
   var SESSION_REPLAY_SAMPLE_RATE = 1;
+
+  /* ------------------------------------------------------------------
+     BUILT-IN SIMULATED GUIDES — on/off.
+
+       true  = the hardcoded demo guides auto-fire as you browse.
+               Use before you have real guides published in Amplitude.
+       false = nothing auto-fires. Only guides you actually built in
+               Amplitude will appear. The rail's manual triggers still
+               work either way, so you keep a fallback.
+
+     You can also flip this live from the presenter rail without
+     redeploying — see "Simulated guides" in the trigger section.
+     ------------------------------------------------------------------ */
+  var SIMULATED_GUIDES = true;
+
+  /* Identifies the demo customer to all three products, so Analytics,
+     Session Replay, and Guides & Surveys agree on who this is. Without
+     it every event lands as "Anonymous User" and your replay is hard
+     to find. Change the string if two people demo at once. */
+  var DEMO_USER_ID = "demo-dana-whitfield";
 </script>
 
 <style>
@@ -366,6 +386,26 @@
   .tag-g{background:#1B3A5C;color:var(--rail-blue)}
   .tag-s{background:#3A2E14;color:var(--rail-brass)}
 
+  .simsw{
+    display:flex;align-items:center;gap:10px;width:100%;padding:9px 11px;border-radius:7px;
+    border:1px solid var(--rail-line);background:transparent;color:var(--rail-text);
+    font-family:var(--mono);font-size:11.5px;margin-bottom:8px;transition:border-color .13s;
+  }
+  .simsw:hover{border-color:#33496B}
+  .simsw .knob{
+    width:28px;height:16px;border-radius:9px;background:var(--rail-green);position:relative;flex:none;
+    transition:background .15s;
+  }
+  .simsw .knob::after{
+    content:"";position:absolute;top:2px;left:14px;width:12px;height:12px;border-radius:50%;
+    background:#0B1526;transition:left .15s;
+  }
+  .simsw[aria-pressed="false"] .knob{background:#3E4C63}
+  .simsw[aria-pressed="false"] .knob::after{left:2px}
+  .simsw .simlbl{text-align:left}
+  .simsw b{color:#fff;font-weight:600}
+  .simnote{font-size:10.5px;color:var(--rail-dim);line-height:1.5;margin-bottom:11px}
+
   .props{font-size:11px;line-height:1.7}
   .props div{display:flex;justify-content:space-between;gap:10px}
   .props .k{color:var(--rail-dim)}
@@ -588,6 +628,11 @@
 
     <div class="rail-sec">
       <h4>Trigger locally (no Amplitude needed)</h4>
+      <button class="simsw" id="simSwitch" aria-pressed="true">
+        <span class="knob"></span>
+        <span class="simlbl">Simulated guides <b id="simState">on</b></span>
+      </button>
+      <div class="simnote" id="simNote"></div>
       <div id="triggers"></div>
       <button class="trig" id="resetGuides" style="margin-top:9px;border-style:dashed">
         <span class="tag" style="background:#2A2033;color:#C9A5E0">reset</span>
@@ -661,6 +706,10 @@ function loadAmplitude(){
         fetchRemoteConfig: true,
         autocapture: true
       });
+      // One identity shared by Analytics, Session Replay, and Guides &
+      // Surveys. Guides & Surveys targeting is far more predictable with
+      // a stable user ID than with a rotating device ID.
+      if(DEMO_USER_ID) window.amplitude.setUserId(DEMO_USER_ID);
       // Session Replay ships inside the unified script. We add it explicitly
       // with sampleRate 1 so every demo session is definitely captured.
       if(window.sessionReplay && window.sessionReplay.plugin){
@@ -1604,8 +1653,11 @@ function wirePage(route){
   }
 }
 
-/* auto-fire the contextual guide for a route, based on the persona */
+/* auto-fire the contextual guide for a route, based on the persona.
+   Skipped entirely when the simulated guides are switched off — real
+   Amplitude guides render themselves and need no help from this. */
 function autoGuide(route){
+  if(!SIMULATED_GUIDES) return;
   var p = STATE.persona;
   setTimeout(function(){
     if(route === "home"){
@@ -1621,8 +1673,10 @@ function autoGuide(route){
 function bumpHelp(){
   STATE.helpArticlesOpened++;
   if(STATE.helpArticlesOpened === 3 && STATE.persona !== "stuck"){
+    // The property update always fires — real Amplitude guides may be
+    // targeting on it. Only the simulated guide is gated.
     setUserProps({help_page_views:3, lifecycle_stage:"self_service_stuck"});
-    setTimeout(function(){ maybeShow("helpGuide", GUIDES.helpGuide); }, 1200);
+    if(SIMULATED_GUIDES) setTimeout(function(){ maybeShow("helpGuide", GUIDES.helpGuide); }, 1200);
   }
 }
 
@@ -1720,6 +1774,25 @@ document.getElementById("railClose").onclick = function(){
   document.body.classList.remove("rail-open");
   setTimeout(function(){ if(openGuide) position(openGuide.el, openGuide.def.anchor); }, 250);
 };
+function paintSimSwitch(){
+  var b = document.getElementById("simSwitch");
+  b.setAttribute("aria-pressed", SIMULATED_GUIDES ? "true" : "false");
+  document.getElementById("simState").textContent = SIMULATED_GUIDES ? "on" : "off";
+  document.getElementById("simNote").textContent = SIMULATED_GUIDES
+    ? "Built-in demo guides auto-fire as you browse. Turn off once you have real guides published in Amplitude."
+    : "Nothing auto-fires. Only guides published in Amplitude will appear. The buttons below still work as a manual fallback.";
+}
+document.getElementById("simSwitch").onclick = function(){
+  SIMULATED_GUIDES = !SIMULATED_GUIDES;
+  closeGuide();
+  paintSimSwitch();
+  track("Demo Simulated Guides Toggled",{enabled:SIMULATED_GUIDES});
+  toast(SIMULATED_GUIDES
+    ? "Simulated guides on. Built-in guides will auto-fire again."
+    : "Simulated guides off. Only real Amplitude guides will show.");
+  if(SIMULATED_GUIDES) autoGuide(STATE.route);
+};
+
 document.getElementById("resetGuides").onclick = function(){
   STATE.dismissed = {}; STATE.answered = {}; STATE.checklist = {};
   toast("All dismissals cleared. Guides will fire again.");
@@ -1744,6 +1817,7 @@ loadAmplitude();
 paintPersonas();
 paintProps();
 paintTriggers();
+paintSimSwitch();
 document.body.classList.add("rail-open");
 setUserProps(PERSONAS[STATE.persona].props);
 render();
