@@ -65,11 +65,15 @@
      ------------------------------------------------------------------ */
   var SIMULATED_GUIDES = true;
 
-  /* Identifies the demo customer to all three products, so Analytics,
-     Session Replay, and Guides & Surveys agree on who this is. Without
-     it every event lands as "Anonymous User" and your replay is hard
-     to find. Change the string if two people demo at once. */
-  var DEMO_USER_ID = "demo-dana-whitfield";
+  /* Each persona is now its OWN Amplitude user, not one user whose
+     properties get overwritten. That means all four cohorts populate at
+     the same time, charts have real segments, and Session Replay gives
+     you four separate sessions — including one belonging specifically to
+     the customer who answered "Not yet".
+
+     The individual IDs live on each persona in the PERSONAS block below.
+     Change this prefix if two people demo at once, so you don't collide. */
+  var DEMO_USER_PREFIX = "demo";
 </script>
 
 <style>
@@ -617,7 +621,10 @@
       <h4>Audience — who is visiting</h4>
       <div id="personas"></div>
       <div style="margin-top:11px;font-size:10.5px;color:var(--rail-dim);line-height:1.5">
-        Switching sets user properties through the Analytics SDK, which is what Guides &amp; Surveys targets on.
+        Each persona is a separate Amplitude user. Switching changes identity, then sets user properties — which is what Guides &amp; Surveys targets on.
+      </div>
+      <div style="margin-top:9px;font-size:10.5px;color:var(--rail-dim)">
+        Sending as <span id="uidLine" style="color:var(--rail-brass)"></span>
       </div>
     </div>
 
@@ -707,9 +714,9 @@ function loadAmplitude(){
         autocapture: true
       });
       // One identity shared by Analytics, Session Replay, and Guides &
-      // Surveys. Guides & Surveys targeting is far more predictable with
-      // a stable user ID than with a rotating device ID.
-      if(DEMO_USER_ID) window.amplitude.setUserId(DEMO_USER_ID);
+      // Surveys. Each persona is a distinct user, so switching persona
+      // switches who Amplitude thinks is on the page.
+      window.amplitude.setUserId(personaUserId(STATE.persona));
       // Session Replay ships inside the unified script. We add it explicitly
       // with sampleRate 1 so every demo session is definitely captured.
       if(window.sessionReplay && window.sessionReplay.plugin){
@@ -828,24 +835,33 @@ var PERSONAS = {
   first:{
     label:"First-time visitor",
     note:"Never completed a task here",
+    uid:"first-visit", who:"Marcus Reyes", initials:"MR", policy:"LAV-2210-8834",
     props:{ portal_visits:1, has_saved_quote:false, days_to_renewal:59, lifecycle_stage:"new", help_page_views:0, policy_status:"active" }
   },
   stalled:{
     label:"Saved a quote, never came back",
     note:"Quote Q-88213 idle 7 days",
+    uid:"quote-stalled", who:"Dana Whitfield", initials:"DW", policy:"LAV-4417-2290",
     props:{ portal_visits:4, has_saved_quote:true, quote_age_days:7, days_to_renewal:59, lifecycle_stage:"quote_stalled", help_page_views:1, policy_status:"active" }
   },
   renewal:{
     label:"Inside the renewal window",
     note:"59 days out, hasn't reviewed",
+    uid:"renewal-window", who:"Priya Raman", initials:"PR", policy:"LAV-6023-1157",
     props:{ portal_visits:9, has_saved_quote:false, days_to_renewal:59, lifecycle_stage:"renewal_pending", renewal_reviewed:false, help_page_views:0, policy_status:"active" }
   },
   stuck:{
     label:"Reading help, not progressing",
     note:"3 articles, no task completed",
+    uid:"help-stuck", who:"Ellen Vogt", initials:"EV", policy:"LAV-3389-7742",
     props:{ portal_visits:6, has_saved_quote:true, days_to_renewal:59, lifecycle_stage:"self_service_stuck", help_page_views:3, policy_status:"active" }
   }
 };
+
+/* Full Amplitude user ID for a persona, e.g. "demo-quote-stalled" */
+function personaUserId(key){
+  return DEMO_USER_PREFIX + "-" + PERSONAS[key].uid;
+}
 
 var STATE = {
   persona:"stalled",
@@ -867,8 +883,8 @@ var VIEWS = {};
 VIEWS.home = function(){
   return `
   <div class="page-head">
-    <div class="eyebrow">Policy ${DATA.policy}</div>
-    <h1>Good afternoon, Dana</h1>
+    <div class="eyebrow">Policy ${PERSONAS[STATE.persona].policy}</div>
+    <h1>Good afternoon, ${PERSONAS[STATE.persona].who.split(" ")[0]}</h1>
     <p class="lede">Your jewelry policy is active. Here is everything you can take care of from this page.</p>
   </div>
 
@@ -1097,7 +1113,7 @@ VIEWS.done = function(){
     <h1>${isQuote ? "Your bracelet is added" : "You are all set for renewal"}</h1>
     <p class="lede" style="margin:12px auto 0;text-align:left">
       ${isQuote
-        ? "The tennis bracelet is now scheduled on policy " + DATA.policy + ". Your annual premium goes from " + DATA.premium + " to $288.00 / year, effective today. A confirmation is on its way to your email."
+        ? "The tennis bracelet is now scheduled on policy " + PERSONAS[STATE.persona].policy + ". Your annual premium goes from " + DATA.premium + " to $288.00 / year, effective today. A confirmation is on its way to your email."
         : "Nothing further is needed. Your policy renews on " + DATA.renewal + " at $221.00 / year, with all three items carried forward. We will send the documents two weeks beforehand."}
     </p>
 
@@ -1694,14 +1710,29 @@ function paintPersonas(){
     b.onclick = function(){
       STATE.persona = b.getAttribute("data-persona");
       STATE.dismissed = {}; STATE.answered = {}; STATE.checklist = {};
+      // Identity FIRST — otherwise the properties below land on the
+      // previous persona's user record.
+      ampCall("setUserId",[personaUserId(STATE.persona)]);
       setUserProps(PERSONAS[STATE.persona].props);
+      paintIdentity();
       track("Demo Persona Switched",{persona:STATE.persona, persona_label:PERSONAS[STATE.persona].label});
       paintPersonas();
       closeGuide();
       autoGuide(STATE.route);
-      toast("Audience switched to “" + PERSONAS[STATE.persona].label + "”. Targeting recalculated.");
+      toast("Now visiting as " + PERSONAS[STATE.persona].who + " — a different Amplitude user. Targeting recalculated.");
     };
   });
+}
+
+/* Header reflects whichever persona is active, so "different customer"
+   is literally true on screen, not just in the data. */
+function paintIdentity(){
+  var pr = PERSONAS[STATE.persona];
+  document.getElementById("avatar").textContent = pr.initials;
+  document.getElementById("acct-name").textContent = pr.who;
+  document.getElementById("acct-policy").textContent = pr.policy;
+  var uid = document.getElementById("uidLine");
+  if(uid) uid.textContent = personaUserId(STATE.persona);
 }
 
 function paintProps(){
@@ -1809,12 +1840,9 @@ window.addEventListener("scroll", function(){
   if(openGuide && openGuide.def.type !== "modal") position(openGuide.el, openGuide.def.anchor);
 }, {passive:true});
 
-document.getElementById("avatar").textContent = DATA.initials;
-document.getElementById("acct-name").textContent = DATA.holder;
-document.getElementById("acct-policy").textContent = DATA.policy;
-
 loadAmplitude();
 paintPersonas();
+paintIdentity();
 paintProps();
 paintTriggers();
 paintSimSwitch();
