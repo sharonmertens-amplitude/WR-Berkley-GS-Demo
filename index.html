@@ -63,7 +63,7 @@
      You can also flip this live from the presenter rail without
      redeploying — see "Simulated guides" in the trigger section.
      ------------------------------------------------------------------ */
-  var SIMULATED_GUIDES = true;
+  var SIMULATED_GUIDES = false;
 
   /* Each persona is now its OWN Amplitude user, not one user whose
      properties get overwritten. That means all four cohorts populate at
@@ -335,7 +335,7 @@
      ========================================================= */
   #rail{
     position:fixed;top:0;right:0;bottom:0;width:var(--rail-w);
-    background:var(--rail-bg);color:var(--rail-text);z-index:70;
+    background:var(--rail-bg);color:var(--rail-text);z-index:2147483646;
     display:flex;flex-direction:column;transform:translateX(100%);
     transition:transform .22s ease;font-family:var(--mono);font-size:12px;
     border-left:1px solid var(--rail-line);
@@ -425,7 +425,7 @@
   .stream-empty{color:var(--rail-dim);padding:8px 0;font-size:11px}
 
   #railToggle{
-    position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:65;
+    position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:2147483645;
     background:var(--ink);color:#fff;border-radius:9px 0 0 9px;padding:15px 9px;
     font-family:var(--mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;
     writing-mode:vertical-rl;box-shadow:-3px 0 14px rgba(14,27,48,.22);font-weight:600;
@@ -874,8 +874,17 @@ function personaFromUrl(){
   return (m && PERSONAS[m[1]]) ? m[1] : null;
 }
 
+/* Switching persona reloads the page, which would otherwise reset the
+   simulated toggle to its default and pop a fake guide on top of a real
+   one mid-demo. Carry the state in the URL so it survives. */
+function simFromUrl(){
+  var m = location.search.match(/[?&]sim=([01])/);
+  return m ? (m[1] === "1") : null;
+}
+if(simFromUrl() !== null) SIMULATED_GUIDES = simFromUrl();
+
 var STATE = {
-  persona:"stalled",
+  persona: personaFromUrl() || "stalled",
   route:"home",
   dismissed:{},        // guide id -> true
   answered:{},         // survey id -> true
@@ -1728,8 +1737,9 @@ function paintPersonas(){
       // identity at boot, so an in-place switch leaves real guides and
       // surveys targeting the previous customer.
       var route = location.hash || "#/home";
-      location.href = location.pathname + "?p=" + key + route;
-      location.reload();
+      // replace() navigates once. href-then-reload races and can land you
+      // back on the previous persona.
+      location.replace(location.pathname + "?p=" + key + "&sim=" + (SIMULATED_GUIDES ? 1 : 0) + route);
     };
   });
 }
