@@ -637,7 +637,7 @@
       <h4>Trigger locally (no Amplitude needed)</h4>
       <button class="simsw" id="simSwitch" aria-pressed="true">
         <span class="knob"></span>
-        <span class="simlbl">Simulated guides <b id="simState">on</b></span>
+        <span class="simlbl">Simulated guides &amp; surveys <b id="simState">on</b></span>
       </button>
       <div class="simnote" id="simNote"></div>
       <div id="triggers"></div>
@@ -861,6 +861,17 @@ var PERSONAS = {
 /* Full Amplitude user ID for a persona, e.g. "demo-quote-stalled" */
 function personaUserId(key){
   return DEMO_USER_PREFIX + "-" + PERSONAS[key].uid;
+}
+
+/* The Guides & Surveys SDK boots once, at page load, against whoever the
+   user is at that moment. Calling setUserId later does NOT re-target it —
+   the console says "Engagement SDK not booted. Ignoring identity change."
+   So switching persona reloads the page with the persona in the URL.
+   Slightly slower on stage, but it is the only way real guides and surveys
+   evaluate against the customer you just switched to. */
+function personaFromUrl(){
+  var m = location.search.match(/[?&]p=([a-z]+)/);
+  return (m && PERSONAS[m[1]]) ? m[1] : null;
 }
 
 var STATE = {
@@ -1573,7 +1584,11 @@ function escalate(){
   toast("Request sent. In a real build, the rep sees which guide was shown and what was answered.");
 }
 
+/* Auto-triggered simulated content — guides AND surveys — is gated by the
+   toggle. Manual triggers from the rail deliberately bypass this so they
+   still work as a fallback. */
 function maybeShow(id, def){
+  if(!SIMULATED_GUIDES) return;
   if(STATE.dismissed[id] || STATE.answered[id]) return;
   showGuide(id, def);
 }
@@ -1708,18 +1723,13 @@ function paintPersonas(){
   }).join("");
   wrap.querySelectorAll("[data-persona]").forEach(function(b){
     b.onclick = function(){
-      STATE.persona = b.getAttribute("data-persona");
-      STATE.dismissed = {}; STATE.answered = {}; STATE.checklist = {};
-      // Identity FIRST — otherwise the properties below land on the
-      // previous persona's user record.
-      ampCall("setUserId",[personaUserId(STATE.persona)]);
-      setUserProps(PERSONAS[STATE.persona].props);
-      paintIdentity();
-      track("Demo Persona Switched",{persona:STATE.persona, persona_label:PERSONAS[STATE.persona].label});
-      paintPersonas();
-      closeGuide();
-      autoGuide(STATE.route);
-      toast("Now visiting as " + PERSONAS[STATE.persona].who + " — a different Amplitude user. Targeting recalculated.");
+      var key = b.getAttribute("data-persona");
+      // Reload with the persona in the URL. The Engagement SDK only reads
+      // identity at boot, so an in-place switch leaves real guides and
+      // surveys targeting the previous customer.
+      var route = location.hash || "#/home";
+      location.href = location.pathname + "?p=" + key + route;
+      location.reload();
     };
   });
 }
@@ -1811,7 +1821,7 @@ function paintSimSwitch(){
   document.getElementById("simState").textContent = SIMULATED_GUIDES ? "on" : "off";
   document.getElementById("simNote").textContent = SIMULATED_GUIDES
     ? "Built-in demo guides auto-fire as you browse. Turn off once you have real guides published in Amplitude."
-    : "Nothing auto-fires. Only guides published in Amplitude will appear. The buttons below still work as a manual fallback.";
+    : "Nothing auto-fires — no guides, no surveys. Only content published in Amplitude will appear. The buttons below still work as a manual fallback.";
 }
 document.getElementById("simSwitch").onclick = function(){
   SIMULATED_GUIDES = !SIMULATED_GUIDES;
@@ -1819,8 +1829,8 @@ document.getElementById("simSwitch").onclick = function(){
   paintSimSwitch();
   track("Demo Simulated Guides Toggled",{enabled:SIMULATED_GUIDES});
   toast(SIMULATED_GUIDES
-    ? "Simulated guides on. Built-in guides will auto-fire again."
-    : "Simulated guides off. Only real Amplitude guides will show.");
+    ? "Simulated guides and surveys on. Built-in content will auto-fire again."
+    : "Simulated off. Only content published in Amplitude will appear.");
   if(SIMULATED_GUIDES) autoGuide(STATE.route);
 };
 
@@ -1840,6 +1850,11 @@ window.addEventListener("scroll", function(){
   if(openGuide && openGuide.def.type !== "modal") position(openGuide.el, openGuide.def.anchor);
 }, {passive:true});
 
+// Persona must be resolved BEFORE loadAmplitude(), because the Engagement
+// SDK boots against whatever identity exists at init time.
+var _p = personaFromUrl();
+if(_p) STATE.persona = _p;
+
 loadAmplitude();
 paintPersonas();
 paintIdentity();
@@ -1849,6 +1864,12 @@ paintSimSwitch();
 document.body.classList.add("rail-open");
 setUserProps(PERSONAS[STATE.persona].props);
 render();
+if(_p){
+  track("Demo Persona Switched",{persona:STATE.persona, persona_label:PERSONAS[STATE.persona].label});
+  setTimeout(function(){
+    toast("Now visiting as " + PERSONAS[STATE.persona].who + " — a separate Amplitude user. Guides and surveys re-evaluated on load.");
+  }, 500);
+}
 </script>
 </body>
 </html>
