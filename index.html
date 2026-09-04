@@ -892,7 +892,8 @@ var STATE = {
   events:[],
   renewalReviewed:false,
   quoteResumed:false,
-  helpArticlesOpened:0
+  helpArticlesOpened:0,
+  resumeUrl:null
 };
 
 /* =====================================================================
@@ -1008,6 +1009,7 @@ VIEWS.quote = function(){
 
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <button class="btn btn-primary" id="btn-resume" data-amp-anchor="resume-quote-cta">Resume quote</button>
+        <button class="btn btn-secondary" id="btn-save" data-amp-anchor="save-quote-cta">Save and finish later</button>
         <button class="btn btn-secondary" id="btn-findhelp" data-amp-anchor="quote-help-cta">I need help finding my quote</button>
         <button class="btn-ghost" id="btn-whatsnext" style="font-size:13px;font-weight:500">What happens next?</button>
       </div>
@@ -1119,6 +1121,44 @@ VIEWS.help = function(){
     </div>
   </div>
   <div id="help-slot" style="margin-top:16px"></div>`;
+};
+
+/* Models the real Lavalier behaviour Todd described: saving a quote does not
+   park it in the portal — it EXITS the customer from the quote flow, and the
+   only way back is an email. This page exists so the friction is visible
+   rather than described. */
+VIEWS.saved = function(){
+  return `
+  <div style="max-width:640px;margin:20px auto">
+    <div style="width:56px;height:56px;border-radius:50%;background:var(--amber-wash);color:var(--amber);display:grid;place-items:center;margin:0 auto 18px">
+      ${ICON.doc}
+    </div>
+    <div class="eyebrow" style="text-align:center">Quote ${DATA.quote.ref}</div>
+    <h1 style="text-align:center">Your quote is saved</h1>
+    <p class="lede" style="margin:12px auto 0">
+      You have left the quote. We have emailed a link to the address on file — that link is how you pick this up again.
+    </p>
+
+    <div class="card pad-lg" style="margin-top:26px" id="anchor-saved" data-amp-anchor="saved-exit-card">
+      <h3 style="margin-bottom:12px">What happens now</h3>
+      <div class="sched">
+        <div class="sched-row"><div class="nm"><b>The quote is closed</b><span>It is no longer open in this session</span></div></div>
+        <div class="sched-row"><div class="nm"><b>An email is on its way</b><span>Usually within a few minutes</span></div></div>
+        <div class="sched-row"><div class="nm"><b>The link in that email is the way back</b><span>There is no other route from this page</span></div></div>
+      </div>
+
+      <div class="notice" style="margin-top:20px">
+        <b>Resume link</b><br>
+        <span style="font-family:var(--mono);font-size:12px;word-break:break-all">${STATE.resumeUrl || "—"}</span><br>
+        <span style="font-size:12px">Carried on the <b>Quote Saved</b> event. This is the property the service team pulls when a customer calls in.</span>
+      </div>
+
+      <div style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap">
+        <button class="btn btn-primary" id="btn-emaillink" data-amp-anchor="email-link-cta">Open the emailed link</button>
+        <a class="btn btn-secondary" href="#/home">Back to overview</a>
+      </div>
+    </div>
+  </div>`;
 };
 
 VIEWS.done = function(){
@@ -1278,6 +1318,15 @@ var GUIDES = {
     why:"Page = saved quote · quote_step = appraisal_upload",
     cta:{label:"Resume quote", act:"resume"},
     secondary:"Got it"
+  },
+
+  saveWarning:{
+    kind:"guide", type:"tooltip", route:"quote", anchor:'[data-amp-anchor="save-quote-cta"]',
+    title:"Saving will close this quote",
+    body:"You will leave the quote, and we will email you a link to come back. If you would rather finish now, the appraisal step takes about two minutes.",
+    why:"On an incomplete quote · about to exit the flow",
+    cta:{label:"Finish it now", act:"resume"},
+    secondary:"Save anyway"
   },
 
   renewalGuide:{
@@ -1567,6 +1616,29 @@ function submitSurvey(el, id, def, answer, comment){
 /* =====================================================================
    7. PRODUCT ACTIONS — these are the real behavioral events
    ===================================================================== */
+/* Save-and-exit. Deliberately does NOT leave a resume path on the page —
+   that is the friction. */
+function saveQuote(){
+  track("Quote Save Clicked",{quote_ref:DATA.quote.ref});
+  STATE.resumeUrl = "https://lavalier.example/resume?ref=" + DATA.quote.ref +
+                    "&t=" + Math.random().toString(36).slice(2,10);
+  track("Quote Saved",{
+    quote_ref: DATA.quote.ref,
+    resume_url: STATE.resumeUrl,
+    exited_flow: true,
+    resume_channel: "email",
+    quote_step: "appraisal_upload"
+  });
+  setUserProps({has_saved_quote:true, lifecycle_stage:"quote_stalled", quote_completed:false});
+  location.hash = "#/saved";
+}
+
+function openEmailLink(){
+  track("Email Link Clicked",{quote_ref:DATA.quote.ref, channel:"email"});
+  toast("Back in the quote. In the real product this is the only door — and it depends on an email arriving, being opened, and being clicked.");
+  location.hash = "#/quote";
+}
+
 function resumeQuote(){
   STATE.quoteResumed = true;
   STATE.lastCompletion = "quote";
@@ -1638,11 +1710,16 @@ function wirePage(route){
       track("Help Requested",{from:"saved quote page"});
       location.hash = "#/help";
     };
+    document.getElementById("btn-save").onclick = saveQuote;
     document.getElementById("btn-whatsnext").onclick = function(){
       track("Support Link Clicked",{link:"What happens next?"});
       document.getElementById("whatsnext-slot").innerHTML =
         '<div class="notice">After you upload the appraisal, the bracelet is added to your policy the same day and your premium adjusts on the next invoice. No new policy, no new renewal date.</div>';
     };
+  }
+
+  if(route === "saved"){
+    document.getElementById("btn-emaillink").onclick = openEmailLink;
   }
 
   if(route === "renewal"){
@@ -1766,6 +1843,7 @@ function paintTriggers(){
   var rows = [
     ["welcome",     "guide",  "Welcome checklist (home)"],
     ["resumeNudge", "guide",  "Saved-quote nudge (home)"],
+    ["saveWarning", "guide",  "Save-and-exit warning (quote)"],
     ["quoteContext","guide",  "Appraisal guide (quote)"],
     ["renewalGuide","guide",  "Renewal guide (renewal)"],
     ["helpGuide",   "guide",  "Stuck-in-help guide (help)"],
